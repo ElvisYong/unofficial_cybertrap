@@ -12,13 +12,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-
-interface Domain {
-  ID: string;
-  Domain: string;
-  UploadedAt: string;
-  UserID: string;
-}
+import { Domain } from '@/app/types';
 
 interface TargetsTableProps {
   domains: Domain[];
@@ -50,7 +44,7 @@ export default function TargetsTable({ domains }: TargetsTableProps) {
           <div className="md:hidden">
             {paginatedDomains.map((domain) => (
               <div
-                key={domain.ID}
+                key={domain.id}
                 className="mb-2 w-full rounded-md bg-white p-4"
               >
               </div>
@@ -77,29 +71,29 @@ export default function TargetsTable({ domains }: TargetsTableProps) {
             <tbody className="bg-white">
               {paginatedDomains.map((domain) => (
                 <tr
-                  key={domain.ID}
+                  key={domain.id}
                   className="w-full border-b py-3 text-sm last-of-type:border-none [&:first-child>td:first-child]:rounded-tl-lg [&:first-child>td:last-child]:rounded-tr-lg [&:last-child>td:first-child]:rounded-bl-lg [&:last-child>td:last-child]:rounded-br-lg"
                 >
                   <td className="whitespace-nowrap py-3 pl-6 pr-3">
-                    {domain.Domain}
+                    {domain.domain}
                   </td>
                   <td className="whitespace-nowrap px-3 py-3">
-                    {domain.UserID}
+                    {domain.userId}
                   </td>
                   <td className="whitespace-nowrap px-3 py-3">
-                    {formatDateToLocal(domain.UploadedAt)}
+                    {formatDateToLocal(domain.uploadedAt)}
                   </td>
                   <td className="whitespace-nowrap py-3 pl-6 pr-3">
                     <div className="flex space-x-4">
                       <button
-                        onClick={() => handleViewDetails(domain.ID)}
+                        onClick={() => handleViewDetails(domain.id)}
                         className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded flex items-center gap-2"
                       >
                         <InformationCircleIcon className="h-4 w-4 text-white" />
                         <span>Target Summary</span>
                       </button>
-                      <button 
-                        onClick={() => selectScanEngine(domain.ID)}
+                      <button
+                        onClick={() => selectScanEngine(domain.id)}
                         className="bg-green-600  hover:bg-green-500 text-white px-4 py-2 rounded flex items-center gap-2"
                       >
                         <BoltIcon className="h-4 w-4 text-white" />
@@ -116,7 +110,7 @@ export default function TargetsTable({ domains }: TargetsTableProps) {
             <Pagination>
               <PaginationContent>
                 <PaginationItem>
-                  <PaginationPrevious 
+                  <PaginationPrevious
                     onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                     className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''}
                   />
@@ -132,7 +126,7 @@ export default function TargetsTable({ domains }: TargetsTableProps) {
                   </PaginationItem>
                 ))}
                 <PaginationItem>
-                  <PaginationNext 
+                  <PaginationNext
                     onClick={() => setCurrentPage(prev => Math.min(prev + 1, pageCount))}
                     className={currentPage === pageCount ? 'pointer-events-none opacity-50' : ''}
                   />

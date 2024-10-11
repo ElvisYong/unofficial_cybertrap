@@ -2,17 +2,8 @@ import { useState, useEffect } from 'react';
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Template } from '@/app/types';
 
-type Template = {
-  ID: string;
-  TemplateID: string;
-  Name: string;
-  Description: string;
-  S3URL: string;
-  Metadata: null | any;
-  Type: string;
-  CreatedAt: string;
-}
 type TemplateSearchProps = {
   templates: Template[];
   selectedTemplates: Template[];
@@ -26,10 +17,10 @@ export default function TemplateSearch({ templates, selectedTemplates, onTemplat
 
   // Filter templates based on the search term
   const filteredTemplates = templates.filter(template =>
-    template.Name.toLowerCase().includes(searchTerm.toLowerCase())
+    template.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const isSelected = (template: Template) => selectedTemplates.some(t => t.ID === template.ID);
+  const isSelected = (template: Template) => selectedTemplates.some(t => t.id === template.id);
   
   // Check if all filtered templates are selected
   useEffect(() => {
@@ -71,7 +62,7 @@ export default function TemplateSearch({ templates, selectedTemplates, onTemplat
           className="mb-4"
         />
         <div className="flex justify-between mb-2">
-          <Button variant="primary" size="sm" onClick={handleToggleSelectAll}>
+          <Button variant="default" size="sm" onClick={handleToggleSelectAll}>
             {allSelected ? 'Deselect All' : 'Select All'}
           </Button>
         </div>
@@ -80,7 +71,7 @@ export default function TemplateSearch({ templates, selectedTemplates, onTemplat
           {filteredTemplates.length > 0 ? (
             filteredTemplates.map((template) => (
               <div
-                key={template.ID}
+                key={template.id}
                 className="flex justify-between items-center p-2 hover:bg-gray-100 cursor-pointer"
               >
                 <label className="flex items-center space-x-2">
@@ -93,7 +84,7 @@ export default function TemplateSearch({ templates, selectedTemplates, onTemplat
                         : onTemplateDeselect(template)
                     }
                   />
-                  <span>{template.Name}</span>
+                  <span>{template.name}</span>
                 </label>
               </div>
             ))

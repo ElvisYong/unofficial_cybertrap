@@ -23,9 +23,9 @@ const FilterByDropdown: React.FC<FilterProps> = ({ onFilter, value }) => {
         </SelectTrigger>
         <SelectContent>
         <SelectItem value="completed">Completed</SelectItem>
-        <SelectItem value="in progress">In Progress</SelectItem>
+        <SelectItem value="in-progress">In Progress</SelectItem>
         <SelectItem value="pending">Pending</SelectItem>
-        <SelectItem value="Failed">Failed</SelectItem>
+        <SelectItem value="failed">Failed</SelectItem>
         </SelectContent>
       </Select>
     </div>

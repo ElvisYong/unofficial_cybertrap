@@ -10,6 +10,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
+	"github.com/shannevie/unofficial_cybertrap/backend/internal/domains_api/dto"
 	r "github.com/shannevie/unofficial_cybertrap/backend/internal/domains_api/repository"
 	"github.com/shannevie/unofficial_cybertrap/backend/models"
 )
@@ -25,24 +26,42 @@ func NewDomainsService(repository *r.DomainsRepository) *DomainsService {
 	}
 }
 
-func (s *DomainsService) GetAllDomains() ([]models.Domain, error) {
+func (s *DomainsService) GetAllDomains() ([]dto.GetDomainResponse, error) {
 	domains, err := s.domainsRepo.GetAllDomains()
 	if err != nil {
 		log.Error().Err(err).Msg("Error fetching domains from the database")
 		return nil, err
 	}
 
-	return domains, nil
+	domainsResponse := make([]dto.GetDomainResponse, 0)
+
+	for _, domain := range domains {
+		domainsResponse = append(domainsResponse, dto.GetDomainResponse{
+			ID:         domain.ID.Hex(),
+			Domain:     domain.Domain,
+			UploadedAt: domain.UploadedAt.Format(time.RFC3339),
+			UserID:     domain.UserID,
+		})
+	}
+
+	return domainsResponse, nil
 }
 
-func (s *DomainsService) GetDomainById(id string) (*models.Domain, error) {
+func (s *DomainsService) GetDomainById(id string) (*dto.GetDomainResponse, error) {
 	domain, err := s.domainsRepo.GetDomainByID(id)
 	if err != nil {
 		log.Error().Err(err).Msg("Error fetching domain from the database")
 		return nil, err
 	}
 
-	return domain, nil
+	domainResponse := dto.GetDomainResponse{
+		ID:         domain.ID.Hex(),
+		Domain:     domain.Domain,
+		UploadedAt: domain.UploadedAt.Format(time.RFC3339),
+		UserID:     domain.UserID,
+	}
+
+	return &domainResponse, nil
 }
 
 func (s *DomainsService) DeleteDomainById(id string) error {

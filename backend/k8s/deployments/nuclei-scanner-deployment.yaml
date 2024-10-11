@@ -31,7 +31,7 @@ spec:
         - name: MAX_CONCURRENT_SCANS
           value: "1"
         - name: DEBUG
-          value: "false"
+          value: "true"
 
         - name: AWS_ACCESS_KEY_ID
           valueFrom:

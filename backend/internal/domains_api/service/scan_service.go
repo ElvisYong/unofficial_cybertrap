@@ -30,24 +30,47 @@ func NewScansService(repository *r.ScansRepository, domainsRepo *r.DomainsReposi
 	}
 }
 
-func (s *ScansService) GetAllScans() ([]models.Scan, error) {
+func (s *ScansService) GetAllScans() ([]dto.GetAllScansResponse, error) {
 	scans, err := s.scansRepo.GetAllScans()
 	if err != nil {
 		log.Error().Err(err).Msg("Error fetching scans from the database")
 		return nil, err
 	}
 
-	return scans, nil
+	scansResponse := make([]dto.GetAllScansResponse, 0)
+	for _, scan := range scans {
+		scansResponse = append(scansResponse, dto.GetAllScansResponse{
+			ID:          scan.ID.Hex(),
+			DomainID:    scan.DomainID,
+			TemplateIDs: scan.TemplateIDs,
+			ScanDate:    scan.ScanDate.Format("2006-01-02"),
+			Status:      scan.Status,
+			S3ResultURL: scan.S3ResultURL,
+		})
+	}
+
+	return scansResponse, nil
 }
 
-func (s *ScansService) GetAllScheduledScans() ([]models.Scan, error) {
+func (s *ScansService) GetAllScheduledScans() ([]dto.ScheduleScanResponse, error) {
 	scans, err := s.scheduledScanRepo.GetAllScheduledScans()
 	if err != nil {
 		log.Error().Err(err).Msg("Error fetching scheduled scans from the database")
 		return nil, err
 	}
 
-	return scans, nil
+	// Convert the scans to the response
+	scheduledScans := make([]dto.ScheduleScanResponse, 0)
+	for _, scan := range scans {
+		scheduledScans = append(scheduledScans, dto.ScheduleScanResponse{
+			ID:            scan.ID.Hex(),
+			DomainID:      scan.DomainID,
+			TemplateIDs:   scan.TemplatesIDs,
+			ScheduledDate: scan.ScheduledDate.Format("2006-01-02"),
+		})
+	}
+
+	return scheduledScans, nil
 }
 
 func (s *ScansService) ScanDomain(domainIdStr string, templateIds []string) error {
@@ -135,25 +158,27 @@ func (s *ScansService) ScanMultiDomain(scanMultiRequests []dto.ScanDomainRequest
 	return errscan
 }
 
-func (s *ScansService) CreateScheduleScanRecord(domainid string, startScan string, templateIDs []string) error {
-	// FIXME: fix this array slice issues
-	// _, err := s.domainsRepo.GetDomainByID(domainid)
-	// if err != nil {
-	// 	log.Error().Err(err).Msg("Error fetching domain from the database")
-	// 	return err
-	// }
+func (s *ScansService) CreateScheduleScanRecord(domainid string, scheduledDate string, templateIDs []string) error {
+	_, err := s.domainsRepo.GetDomainByID(domainid)
+	if err != nil {
+		log.Error().Err(err).Msg("Error fetching domain from the database")
+		return err
+	}
 
-	convertedStartScanToTimeFormat, error := time.Parse("2006-01-02", startScan)
+	convertedStartScanToTimeFormat, error := time.Parse("2006-01-02", scheduledDate)
+	log.Info().Msgf("Converted start scan to time format: %v", convertedStartScanToTimeFormat)
+	year, month, day := convertedStartScanToTimeFormat.Date()
+	log.Info().Msgf("Date: %d-%02d-%02d", year, int(month), day)
 
 	if error != nil {
 		fmt.Println(error)
 	}
 
 	schedulescanModel := models.ScheduleScan{
-		ID:           primitive.NewObjectID(),
-		DomainID:     domainid,
-		TemplatesIDs: templateIDs,
-		StartScan:    convertedStartScanToTimeFormat,
+		ID:            primitive.NewObjectID(),
+		DomainID:      domainid,
+		TemplatesIDs:  templateIDs,
+		ScheduledDate: convertedStartScanToTimeFormat,
 	}
 
 	// Insert the domains into the database

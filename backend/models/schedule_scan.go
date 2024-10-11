@@ -7,8 +7,8 @@ import (
 )
 
 type ScheduleScan struct {
-	ID           primitive.ObjectID `bson:"_id,omitempty"`
-	DomainID     string             `bson:"domain_id"`
-	TemplatesIDs []string           `bson:"template_ids"`
-	StartScan    time.Time          `bson:"start_scan"`
+	ID            primitive.ObjectID `bson:"_id,omitempty"`
+	DomainID      string             `bson:"domain_id"`
+	TemplatesIDs  []string           `bson:"template_ids"`
+	ScheduledDate time.Time          `bson:"scheduled_date"`
 }

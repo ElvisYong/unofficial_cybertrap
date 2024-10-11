@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
+	"github.com/shannevie/unofficial_cybertrap/backend/internal/domains_api/dto"
 	r "github.com/shannevie/unofficial_cybertrap/backend/internal/domains_api/repository"
 	"github.com/shannevie/unofficial_cybertrap/backend/models"
 )
@@ -63,14 +64,29 @@ func (s *TemplatesService) UploadNucleiTemplate(file multipart.File, file_header
 }
 
 // TODO: GET endpoints for templates
-func (s *TemplatesService) GetAllTemplates() ([]models.Template, error) {
+func (s *TemplatesService) GetAllTemplates() ([]dto.GetAllTemplatesResponse, error) {
 	templates, err := s.templatesRepo.GetAllTemplates()
 	if err != nil {
 		log.Error().Err(err).Msg("Error fetching templates from the database")
 		return nil, err
 	}
 
-	return templates, nil
+	// convert the templates to the dto.GetAllTemplatesResponse
+	var response []dto.GetAllTemplatesResponse
+	for _, template := range templates {
+		response = append(response, dto.GetAllTemplatesResponse{
+			ID:          template.ID.Hex(),
+			TemplateID:  template.TemplateID,
+			Name:        template.Name,
+			Description: template.Description,
+			S3URL:       template.S3URL,
+			Metadata:    template.Metadata,
+			Type:        template.Type,
+			CreatedAt:   template.CreatedAt.Format(time.RFC3339),
+		})
+	}
+
+	return response, nil
 }
 
 // TODO: DELETE endpoints for templates

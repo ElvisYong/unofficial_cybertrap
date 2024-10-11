@@ -25,7 +25,7 @@ func NewScheduledScanRepository(mongoClient *mongo.Client, mongoDbName string) *
 	}
 }
 
-func (r *ScheduledScanRepository) GetAllScheduledScans() ([]models.Scan, error) {
+func (r *ScheduledScanRepository) GetAllScheduledScans() ([]models.ScheduleScan, error) {
 	collection := r.mongoClient.Database(r.mongoDbName).Collection(r.collectionName)
 	cursor, err := collection.Find(context.Background(), bson.M{})
 	if err != nil {
@@ -33,7 +33,7 @@ func (r *ScheduledScanRepository) GetAllScheduledScans() ([]models.Scan, error) 
 		return nil, err
 	}
 
-	var scans []models.Scan
+	var scans []models.ScheduleScan
 
 	if err = cursor.All(context.Background(), &scans); err != nil {
 		log.Error().Err(err).Msg("Error populating scans from MongoDB cursor")

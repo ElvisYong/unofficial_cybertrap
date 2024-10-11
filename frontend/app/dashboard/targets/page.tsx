@@ -8,13 +8,7 @@ import { PlusCircleIcon } from '@heroicons/react/24/outline';
 import TargetModal from '../../ui/components/target-modal';
 import { Input } from '@/components/ui/input';
 import { BASE_URL } from '@/data';
-
-interface Domain {
-  ID: string;
-  Domain: string;
-  UploadedAt: string;
-  UserID: string;
-}
+import { Domain } from '@/app/types';
 
 export default function Targets() : JSX.Element {
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
@@ -33,7 +27,7 @@ export default function Targets() : JSX.Element {
       }
       const data: Domain[] = await response.json();
       const sortedDomains = data.sort((a, b) => 
-        new Date(b.UploadedAt).getTime() - new Date(a.UploadedAt).getTime()
+        new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
       );
       setDomains(sortedDomains);
     } catch (error) {
@@ -52,7 +46,7 @@ export default function Targets() : JSX.Element {
 
   // Filter the domains based on the search term
   const filteredDomains = domains.filter(domain =>
-    domain.Domain.toLowerCase().includes(searchTerm.toLowerCase())
+    domain.domain.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (

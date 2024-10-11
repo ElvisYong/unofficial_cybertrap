@@ -2,39 +2,10 @@
 import { useEffect, useState } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline'; // Import the Heroicon
 import { BASE_URL } from '@/data';
-
-// Define the shape of the data you're fetching
-type Scan = {
-  ID: string
-  DomainID: string
-  Domain: string
-  TemplateIDs: string[]
-  ScanDate: string
-  Status: string
-  Error: string | null
-  S3ResultURL: string | null
-}
-
-
-interface Domain {
-  ID: string;
-  Domain: string;
-  UploadedAt: string;
-  UserID: string; 
-}
-interface Template {
-  ID: string;
-  TemplateID: string;
-  Name: string;
-  Description: string;
-  S3URL: string;
-  Metadata: null | any;
-  Type: string;
-  CreatedAt: string;
-}
+import { Domain, ScheduledScanResponse, Template } from '@/app/types';
 
 export default function ScheduleScanTable() {
-  const [scans, setScans] = useState<ScheduledScan[]>([]);
+  const [scans, setScans] = useState<ScheduledScanResponse[]>([]);
 
   //domains
   const [domains, setDomains] = useState<Domain[]>([]);
@@ -58,8 +29,8 @@ export default function ScheduleScanTable() {
 
   // Function to get the domain name by ID
   const getDomainNameById = (domainID: string) => {
-    const domain = domains.find(d => d.ID === domainID);
-    return domain ? domain.Domain : 'Unknown Domain';
+    const domain = domains.find(d => d.id === domainID);
+    return domain ? domain.domain : 'Unknown Domain';
   };
 
   //templates
@@ -87,19 +58,20 @@ export default function ScheduleScanTable() {
     if (!templateIDs || templateIDs.length === 0) {
       return 'null'; // Return 'null' if template IDs are not provided or empty
     }
-    const matchedTemplates = templates.filter(t => templateIDs.includes(t.ID));
-    return matchedTemplates.map(t => t.Name).join(', ');
+    const matchedTemplates = templates.filter(t => templateIDs.includes(t.id));
+    return matchedTemplates.map(t => t.name).join(', ');
   };
 
   // Fetch the scheduled scans when the component mounts
-  const fetchScans = async () => {
+  const fetchScheduledScans = async () => {
     const endpoint = `${BASE_URL}/v1/scans/schedule`;
     try {
       const response = await fetch(endpoint);
       if (!response.ok) {
         throw new Error('Network response was not ok');
       }
-      const data: ScheduledScan[] = await response.json();
+
+      const data: ScheduledScanResponse[] = await response.json();
       setScans(data);
       console.log('scan', data);
     } catch (error) {
@@ -108,7 +80,7 @@ export default function ScheduleScanTable() {
   };
 
   useEffect(() => {
-    fetchScans();
+    fetchScheduledScans();
     fetchDomains();
   }, []);
 
@@ -129,7 +101,7 @@ export default function ScheduleScanTable() {
       }
 
       // Update state to remove the deleted scan from the UI
-      setScans(prevScans => prevScans.filter(scan => scan.ID !== scanID));
+      setScans(prevScans => prevScans.filter(scan => scan.id !== scanID));
       console.log('Scan deleted successfully');
     } catch (error) {
       console.error('Error deleting scheduled scan:', error);
@@ -144,18 +116,18 @@ export default function ScheduleScanTable() {
             <th className="px-4 py-2">Domain</th>
             <th className="px-4 py-2">Templates</th>
             <th className="px-4 py-2">Scheduled Date</th>
-            <th className="px-4 py-2">Actions</th> 
+            <th className="px-4 py-2">Actions</th>
           </tr>
         </thead>
         <tbody>
-          {scans.map((scan, index) => (
+          {scans && scans.map((scan, index) => (
             <tr key={index} className="border-t">
-              <td>{getDomainNameById(scan.DomainID)}</td>
-              <td className="px-4 py-2">{getTemplateNamesByIds(scan.TemplateIDs)}</td>
-              <td className="px-4 py-2">{scan.ScanDate}</td>
+              <td className="px-4 py-2">{getDomainNameById(scan.domainId)}</td>
+              <td className="px-4 py-2">{getTemplateNamesByIds(scan.templatesIds)}</td>
+              <td className="px-4 py-2">{scan.scheduledDate}</td>
               <td className="px-4 py-2 flex justify-center">
                 <button
-                  onClick={() => handleDelete(scan.ID)}
+                  onClick={() => handleDelete(scan.id)}
                   className="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-sm flex items-center gap-1"
                   title="Delete"
                 >

@@ -16,24 +16,7 @@ import FilterByString from '@/components/ui/filterString'
 import FilterByDropdown from '@/components/ui/filterDropdown'
 import SortButton from '@/components/ui/sortButton'
 import { BASE_URL } from '@/data'
-
-type Scan = {
-  ID: string
-  DomainID: string
-  Domain: string
-  TemplateIDs: string[]
-  ScanDate: string
-  Status: string
-  Error: string | null
-  S3ResultURL: string | null
-}
-
-interface Domain {
-  ID: string;
-  Domain: string;
-  UploadedAt: string;
-  UserID: string; 
-}
+import { Domain, Scan } from '@/app/types'
 
 export default function ScanResultsTable() {
   const [scans, setScans] = useState<Scan[]>([])
@@ -49,7 +32,7 @@ export default function ScanResultsTable() {
     status: ''
   })
   const [sortConfig, setSortConfig] = useState({
-    key: 'ScanDate',
+    key: 'scanDate',
     direction: 'desc'
   })
 
@@ -64,7 +47,7 @@ export default function ScanResultsTable() {
 
   const fetchScans = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/v1/scans/`)
+      const response = await fetch(`${BASE_URL}/v1/scans`)
       if (!response.ok) {
         throw new Error('Failed to fetch scans')
       }
@@ -72,7 +55,7 @@ export default function ScanResultsTable() {
       console.log(data)
 
       const sortedScans = data.sort((a: Scan, b: Scan) => 
-        new Date(b.ScanDate).getTime() - new Date(a.ScanDate).getTime()
+        new Date(b.scanDate).getTime() - new Date(a.scanDate).getTime()
       )
   
       setScans(sortedScans)
@@ -105,8 +88,8 @@ export default function ScanResultsTable() {
     setSortConfig({ key, direction })
 
     const sortedScans = [...filteredScans].sort((a, b) => {
-      const aValue = key === 'ScanDate' ? new Date(a[key]) : a[key]
-      const bValue = key === 'ScanDate' ? new Date(b[key]) : b[key]
+      const aValue = key === 'scanDate' ? new Date(a[key]) : a[key]
+      const bValue = key === 'scanDate' ? new Date(b[key]) : b[key]
       return direction === 'asc' ? aValue - bValue : bValue - aValue
     })
     setFilteredScans(sortedScans)
@@ -116,13 +99,13 @@ export default function ScanResultsTable() {
     let filtered = sortedScans
     if (filters.domain) {
       filtered = filtered.filter(scan =>
-        scan.Domain.toLowerCase().includes(filters.domain.toLowerCase())
+        scan.domain.toLowerCase().includes(filters.domain.toLowerCase())
       )
     }
 
     if (filters.templateID) {
       filtered = filtered.filter(scan =>
-        scan.TemplateIDs.some(templateID =>
+        scan.templateIds.some(templateID =>
           templateID.toLowerCase().includes(filters.templateID.toLowerCase())
         )
       )
@@ -130,7 +113,7 @@ export default function ScanResultsTable() {
 
     if (filters.status) {
       filtered = filtered.filter(scan =>
-        scan.Status.toLowerCase().includes(filters.status.toLowerCase())
+        scan.status.toLowerCase().includes(filters.status.toLowerCase())
       )
     }
 
@@ -181,8 +164,8 @@ export default function ScanResultsTable() {
   )
 
   const getDomainNameById = (domainID: string) => {
-    const domain = domains.find(d => d.ID === domainID);
-    return domain ? domain.Domain : 'Unknown Domain';
+    const domain = domains.find(d => d.id === domainID);
+    return domain ? domain.domain : 'Unknown Domain';
   };
 
   return (
@@ -243,27 +226,27 @@ export default function ScanResultsTable() {
             <tbody className="bg-white">
               {paginatedScans.map((scan) => (
                 <tr
-                  key={scan.ID}
+                  key={scan.id}
                   className="w-full border-b py-3 text-sm last-of-type:border-none [&:first-child>td:first-child]:rounded-tl-lg [&:first-child>td:last-child]:rounded-tr-lg [&:last-child>td:first-child]:rounded-bl-lg [&:last-child>td:last-child]:rounded-br-lg"
                 >
                   <td className="whitespace-nowrap py-3 pl-6 pr-3">
-                    {scan.Domain || getDomainNameById(scan.DomainID)}
+                    {scan.domain || getDomainNameById(scan.domainId)}
                   </td>
                   <td className="whitespace-nowrap px-3 py-3">
-                    {scan.TemplateIDs.join(', ') || 'All Github Default Template'}
+                    {scan.templateIds.join(', ') || 'All Github Default Template'}
                   </td>
                   <td className="whitespace-nowrap px-3 py-3">
-                    {scan.Status.toLowerCase() === 'completed' 
-                      ? formatDateToLocal(scan.ScanDate)
+                    {scan.status.toLowerCase() === 'completed' 
+                      ? formatDateToLocal(scan.scanDate)
                       : 'N/A'}
                   </td>
                   <td className="whitespace-nowrap px-3 py-3">
-                    {getStatusBadge(scan.Status)}
+                    {getStatusBadge(scan.status)}
                   </td>
                   <td className="whitespace-nowrap py-3 pl-6 pr-3">
                     <div className="flex space-x-4">
                       <button
-                        onClick={() => handleViewDetails(scan.ID)}
+                        onClick={() => handleViewDetails(scan.id)}
                         className="bg-green-600 text-white px-4 py-2 rounded flex items-center gap-2"
                       >
                         <InformationCircleIcon className="h-4 w-4 text-white" />

@@ -1,12 +1,7 @@
 import { useState } from 'react';
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Input } from '@/components/ui/input';
-
-type Domain = {
-  ID: string;
-  DomainID: string;
-  Domain: string;
-};
+import { Domain } from '@/app/types';
 
 type DomainSearchProps = {
   domains: Domain[];
@@ -19,13 +14,13 @@ export default function DomainSearch({ domains, selectedDomain, onDomainSelect }
 
   // Filter domains based on the search term
   const filteredDomains = domains.filter(domain =>
-    domain.Domain.toLowerCase().includes(searchTerm.toLowerCase())
+    domain.domain.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
     <Popover>
       <PopoverTrigger className="border px-4 py-2 rounded cursor-pointer w-full text-left">
-        {selectedDomain?.Domain || 'Select Domain'}
+        {selectedDomain?.domain || 'Select Domain'}
       </PopoverTrigger>
       <PopoverContent className="w-72 p-4">
         <Input
@@ -38,11 +33,11 @@ export default function DomainSearch({ domains, selectedDomain, onDomainSelect }
           {filteredDomains.length > 0 ? (
             filteredDomains.map((domain) => (
               <div
-                key={domain.ID}
+                key={domain.id}
                 onClick={() => onDomainSelect(domain)}
-                className={`p-2 hover:bg-gray-100 cursor-pointer ${selectedDomain?.ID === domain.ID ? 'bg-gray-200' : ''}`}
+                className={`p-2 hover:bg-gray-100 cursor-pointer ${selectedDomain?.id === domain.id ? 'bg-gray-200' : ''}`}
               >
-                {domain.Domain}
+                {domain.domain}
               </div>
             ))
           ) : (

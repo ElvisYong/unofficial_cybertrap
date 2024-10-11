@@ -105,7 +105,7 @@ func (h *ScansHandler) ScheduleSingleScan(w http.ResponseWriter, r *http.Request
 	defer r.Body.Close()
 
 	// Call to ScansService to save the new scan domain and templates
-	err := h.ScansService.CreateScheduleScanRecord(req.DomainID, req.StartScan, req.TemplateIDs)
+	err := h.ScansService.CreateScheduleScanRecord(req.DomainID, req.ScheduledDate, req.TemplateIDs)
 	if err != nil {
 		http.Error(w, "Failed to create scan record", http.StatusInternalServerError)
 		return

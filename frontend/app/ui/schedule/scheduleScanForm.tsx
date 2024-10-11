@@ -4,27 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { format } from 'date-fns';
-import DomainSearch from './DomainSearch';
-import TemplateSearch from './TemplateSearch';
 import { BASE_URL } from '@/data';
 import { useState, useEffect } from "react";
-
-interface Domain {
-  ID: string;
-  Domain: string;
-  UploadedAt: string;
-  UserID: string; 
-}
-interface Template {
-  ID: string;
-  TemplateID: string;
-  Name: string;
-  Description: string;
-  S3URL: string;
-  Metadata: null | any;
-  Type: string;
-  CreatedAt: string;
-}
+import { Domain, Template } from "@/app/types";
+import TemplateSearch from "./templateSearch";
+import DomainSearch from "./domainSearch";
 
 
 type ScheduleScanFormProps = {
@@ -32,8 +16,8 @@ type ScheduleScanFormProps = {
 };
 
 export default function ScheduleScanForm({ onSubmit }: ScheduleScanFormProps) {
-  const [selectedDomain, setSelectedDomain] = useState<any>(null);
-  const [selectedTemplates, setSelectedTemplates] = useState<any[]>([])
+  const [selectedDomain, setSelectedDomain] = useState<Domain | null>(null);
+  const [selectedTemplates, setSelectedTemplates] = useState<Template[]>([]);
   const [scanDate, setScanDate] = useState<Date | null>(null);
 
   //domains
@@ -91,11 +75,10 @@ export default function ScheduleScanForm({ onSubmit }: ScheduleScanFormProps) {
     e.preventDefault();
 
     const scanData = {
-      ID: '',
-      DomainID: selectedDomain?.ID,
-      Domain: selectedDomain?.Domain, 
-      TemplateIDs: selectedTemplates.map(template => template.ID), 
-      scanDate: scanDate ? format(scanDate, 'yyyy-MM-dd') : null,
+      domainID: selectedDomain?.id,
+      domain: selectedDomain?.domain, 
+      templateIDs: selectedTemplates.map(template => template.id), 
+      scheduledDate: scanDate ? format(scanDate, 'yyyy-MM-dd') : null,
     };
     console.log('scan submitted: ', scanData);
 
