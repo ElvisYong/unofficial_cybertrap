@@ -170,11 +170,42 @@ export default function ScanResultsTable() {
     currentPage * itemsPerPage
   )
 
+  // get domain name from ID
+  interface Domain {
+    ID: string;
+    Domain: string;
+    UploadedAt: string;
+    UserID: string; 
+  }
+
+  const [domains, setDomains] = useState<Domain[]>([]);
+  const fetchDomains = async () => {
+    const endpoint = `${BASE_URL}/v1/domains`;
+    try {
+      const response = await fetch(endpoint);
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      const data: Domain[] = await response.json();
+      setDomains(data);
+      console.log('domain', data);
+    } catch (error) {
+      console.error('Error fetching domains:', error);
+    }
+  };
+  useEffect(() => {
+    fetchDomains()
+  })
+  const getDomainNameById = (domainID: string) => {
+    const domain = domains.find(d => d.ID === domainID);
+    return domain ? domain.Domain : 'Unknown Domain';
+  };
+
   return (
     <div className="mt-6 flow-root">
       <div className="inline-block min-w-full align-middle">
         <div className="rounded-lg bg-gray-50 p-2 md:pt-0">
-          <div className="md:hidden">
+          {/* <div className="md:hidden">
             {paginatedScans.map((scan) => (
               <div
                 key={scan.ID}
@@ -182,7 +213,7 @@ export default function ScanResultsTable() {
               >
                 <div className="flex items-center justify-between border-b pb-4">
                   <div>
-                    <p className="text-xl font-medium">{scan.Domain || scan.DomainID}</p>
+                    <p className="text-xl font-medium">{scan.Domain || getDomainNameById(scan.DomainID)}</p>
                   </div>
                 </div>
                 <div className="flex w-full items-center justify-between pt-4">
@@ -202,7 +233,7 @@ export default function ScanResultsTable() {
                 </div>
               </div>
             ))}
-          </div>
+          </div> */}
           <div>
             <FilterByString
               filterType="domain"
@@ -262,7 +293,7 @@ export default function ScanResultsTable() {
                   className="w-full border-b py-3 text-sm last-of-type:border-none [&:first-child>td:first-child]:rounded-tl-lg [&:first-child>td:last-child]:rounded-tr-lg [&:last-child>td:first-child]:rounded-bl-lg [&:last-child>td:last-child]:rounded-br-lg"
                 >
                   <td className="whitespace-nowrap py-3 pl-6 pr-3">
-                    {scan.Domain || scan.DomainID}
+                    {scan.Domain || getDomainNameById(scan.DomainID)}
                   </td>
                   <td className="whitespace-nowrap px-3 py-3">
                     {scan.TemplateIDs.join(', ') || 'N/A'}
