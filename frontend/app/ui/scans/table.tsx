@@ -69,6 +69,7 @@ export default function ScanResultsTable() {
         throw new Error('Failed to fetch scans')
       }
       const data = await response.json()
+      console.log(data)
 
       const sortedScans = data.sort((a: Scan, b: Scan) => 
         new Date(b.ScanDate).getTime() - new Date(a.ScanDate).getTime()
@@ -85,6 +86,7 @@ export default function ScanResultsTable() {
     const endpoint = `${BASE_URL}/v1/domains`;
     try {
       const response = await fetch(endpoint);
+      // console.log(response.json())
       if (!response.ok) {
         throw new Error('Network response was not ok');
       }
@@ -110,7 +112,7 @@ export default function ScanResultsTable() {
     setFilteredScans(sortedScans)
   }
   
-  const applyFilters = (sortedScans) => {
+  const applyFilters = (sortedScans: Scan[]) => {
     let filtered = sortedScans
     if (filters.domain) {
       filtered = filtered.filter(scan =>
