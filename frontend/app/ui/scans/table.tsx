@@ -17,7 +17,6 @@ import FilterByDropdown from '@/components/ui/filterDropdown'
 import SortButton from '@/components/ui/sortButton'
 import { BASE_URL } from '@/data'
 
-// mock data to be removed
 type Scan = {
   ID: string
   DomainID: string
@@ -29,11 +28,18 @@ type Scan = {
   S3ResultURL: string | null
 }
 
+interface Domain {
+  ID: string;
+  Domain: string;
+  UploadedAt: string;
+  UserID: string; 
+}
 
 export default function ScanResultsTable() {
   const [scans, setScans] = useState<Scan[]>([])
   const [filteredScans, setFilteredScans] = useState<Scan[]>([])
   const [currentPage, setCurrentPage] = useState(1)
+  const [domains, setDomains] = useState<Domain[]>([])
   const itemsPerPage = 7
   const router = useRouter()
 
@@ -49,24 +55,22 @@ export default function ScanResultsTable() {
 
   useEffect(() => {
     fetchScans()
+    fetchDomains()
   }, [])
 
   useEffect(() => {
     applyFilters(scans)
   }, [scans, filters])
 
-
   const fetchScans = async () => {
     try {
       const response = await fetch(`${BASE_URL}/v1/scans/`)
-      console.log('hi', response)
       if (!response.ok) {
         throw new Error('Failed to fetch scans')
       }
       const data = await response.json()
+      console.log(data)
 
-
-      // Sort scans by ScanDate in descending order
       const sortedScans = data.sort((a: Scan, b: Scan) => 
         new Date(b.ScanDate).getTime() - new Date(a.ScanDate).getTime()
       )
@@ -78,7 +82,21 @@ export default function ScanResultsTable() {
     }
   }  
 
-  // Apply sorting to all scans
+  const fetchDomains = async () => {
+    const endpoint = `${BASE_URL}/v1/domains`;
+    try {
+      const response = await fetch(endpoint);
+      // console.log(response.json())
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      const data: Domain[] = await response.json();
+      setDomains(data);
+    } catch (error) {
+      console.error('Error fetching domains:', error);
+    }
+  };
+
   const handleSort = (key: string) => {
     let direction = 'asc'
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -92,23 +110,17 @@ export default function ScanResultsTable() {
       return direction === 'asc' ? aValue - bValue : bValue - aValue
     })
     setFilteredScans(sortedScans)
-    console.log(filteredScans, 'set scans')
   }
   
-  // Apply filter to scan based on the selected filter
-  const applyFilters = (sortedScans) => {
+  const applyFilters = (sortedScans: Scan[]) => {
     let filtered = sortedScans
-    console.log('apply filter function')
-    console.log(filters)
     if (filters.domain) {
-      console.log('domain',filters.domain)
       filtered = filtered.filter(scan =>
         scan.Domain.toLowerCase().includes(filters.domain.toLowerCase())
       )
     }
 
     if (filters.templateID) {
-      console.log('template', filters.templateID)
       filtered = filtered.filter(scan =>
         scan.TemplateIDs.some(templateID =>
           templateID.toLowerCase().includes(filters.templateID.toLowerCase())
@@ -117,28 +129,26 @@ export default function ScanResultsTable() {
     }
 
     if (filters.status) {
-      console.log('status',filters.status)
       filtered = filtered.filter(scan =>
         scan.Status.toLowerCase().includes(filters.status.toLowerCase())
       )
-      console.log('apply status function')
-      console.log(filters.status)
     }
 
     setFilteredScans(filtered)
-    console.log(filtered)
     setCurrentPage(1) 
   }
+
   const handleFilter = (filterType: string, filterValue: string) => {
     setFilters(prevFilters => ({
       ...prevFilters,
       [filterType]: filterValue
     }))
   } 
+
   const handleViewDetails = (scanId: string) => {
     router.push(`/dashboard/scans/${encodeURIComponent(scanId)}`)
   }
-  // Reset filter and results
+
   const resetFilters = () => {
     setFilters({
       domain: '',
@@ -163,39 +173,13 @@ export default function ScanResultsTable() {
         return <span className="bg-gray-300 text-white px-2 py-1 rounded">Unknown</span>
     }
   }
-  console.log('test', filteredScans)
-  const pageCount = Math.ceil(scans.length / itemsPerPage)
+
+  const pageCount = Math.ceil(filteredScans.length / itemsPerPage)
   const paginatedScans = filteredScans.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   )
 
-  // get domain name from ID
-  interface Domain {
-    ID: string;
-    Domain: string;
-    UploadedAt: string;
-    UserID: string; 
-  }
-
-  const [domains, setDomains] = useState<Domain[]>([]);
-  const fetchDomains = async () => {
-    const endpoint = `${BASE_URL}/v1/domains`;
-    try {
-      const response = await fetch(endpoint);
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
-      }
-      const data: Domain[] = await response.json();
-      setDomains(data);
-      console.log('domain', data);
-    } catch (error) {
-      console.error('Error fetching domains:', error);
-    }
-  };
-  useEffect(() => {
-    fetchDomains()
-  })
   const getDomainNameById = (domainID: string) => {
     const domain = domains.find(d => d.ID === domainID);
     return domain ? domain.Domain : 'Unknown Domain';
@@ -205,35 +189,6 @@ export default function ScanResultsTable() {
     <div className="mt-6 flow-root">
       <div className="inline-block min-w-full align-middle">
         <div className="rounded-lg bg-gray-50 p-2 md:pt-0">
-          {/* <div className="md:hidden">
-            {paginatedScans.map((scan) => (
-              <div
-                key={scan.ID}
-                className="mb-2 w-full rounded-md bg-white p-4"
-              >
-                <div className="flex items-center justify-between border-b pb-4">
-                  <div>
-                    <p className="text-xl font-medium">{scan.Domain || getDomainNameById(scan.DomainID)}</p>
-                  </div>
-                </div>
-                <div className="flex w-full items-center justify-between pt-4">
-                  <div>
-                    <p>{formatDateToLocal(scan.ScanDate)}</p>
-                    <p>{getStatusBadge(scan.Status)}</p>
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <button
-                      onClick={() => handleViewDetails(scan.ID)}
-                      className="bg-green-600 text-white px-3 py-1 rounded text-sm flex items-center gap-1"
-                    >
-                      <InformationCircleIcon className="h-4 w-4 text-white" />
-                      <span>Details</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div> */}
           <div>
             <FilterByString
               filterType="domain"
@@ -254,12 +209,11 @@ export default function ScanResultsTable() {
               value={filters.status}
             /> 
             <button
-                // onClick={() => setFilteredScans(scans)}
-                onClick={resetFilters}
-                className="bg-gray-600 text-white px-4 py-2 rounded"
-              >
-                Reset Filters
-              </button>       
+              onClick={resetFilters}
+              className="bg-gray-600 text-white px-4 py-2 rounded"
+            >
+              Reset Filters
+            </button>       
           </div>
           <table className="hidden min-w-full text-gray-900 md:table">
             <thead className="rounded-lg text-left text-sm font-normal">
@@ -299,7 +253,9 @@ export default function ScanResultsTable() {
                     {scan.TemplateIDs.join(', ') || 'N/A'}
                   </td>
                   <td className="whitespace-nowrap px-3 py-3">
-                    {formatDateToLocal(scan.ScanDate)}
+                    {scan.Status.toLowerCase() === 'completed' 
+                      ? formatDateToLocal(scan.ScanDate)
+                      : 'N/A'}
                   </td>
                   <td className="whitespace-nowrap px-3 py-3">
                     {getStatusBadge(scan.Status)}
