@@ -16,7 +16,7 @@ services:
       - .env.domains
 
   nuclei_scanner:
-    image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:nuclei-scanner-v0.1.5
+    image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:nuclei-scanner-v0.1.6
     build:
       context: .
       dockerfile: Dockerfile

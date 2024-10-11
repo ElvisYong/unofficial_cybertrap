@@ -130,6 +130,7 @@ func main() {
 				nh := helpers.NewNucleiHelper(s3Helper, mongoHelper)
 
 				// Update scan status to "in-progress"
+				log.Info().Msgf("Updating scan status to in-progress")
 				err = mongoHelper.UpdateScanStatus(context.Background(), scanID, "in-progress")
 				if err != nil {
 					log.Error().Err(err).Msg("Failed to update scan status")

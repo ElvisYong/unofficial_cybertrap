@@ -98,7 +98,7 @@ func main() {
 			ID:          primitive.NewObjectID(),
 			DomainID:    scan.DomainID,
 			TemplateIDs: scan.TemplatesIDs,
-			Status:      "Pending",
+			Status:      "pending",
 		}
 
 		scanArray = append(scanArray, scanModel)

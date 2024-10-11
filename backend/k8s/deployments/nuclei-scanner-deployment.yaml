@@ -18,7 +18,7 @@ spec:
         kubernetes.io/arch: arm64
       containers:
       - name: nuclei-scanner
-        image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:nuclei-scanner-v0.1.5
+        image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:nuclei-scanner-v0.1.6
         command: ["/bin/nuclei_scanner"]
         resources:
           requests:
@@ -30,6 +30,8 @@ spec:
         env:
         - name: MAX_CONCURRENT_SCANS
           value: "1"
+        - name: DEBUG
+          value: "false"
 
         - name: AWS_ACCESS_KEY_ID
           valueFrom:

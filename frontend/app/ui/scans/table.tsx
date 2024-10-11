@@ -163,7 +163,7 @@ export default function ScanResultsTable() {
     switch (status.toLowerCase()) {
       case 'completed':
         return <span className="bg-green-500 text-white px-2 py-1 rounded">Completed</span>
-      case 'in progress':
+      case 'in-progress':
         return <span className="bg-yellow-500 text-white px-2 py-1 rounded">In Progress</span>
       case 'pending':
         return <span className="bg-blue-500 text-white px-2 py-1 rounded">Pending</span>
