@@ -23,6 +23,7 @@ func NewDomainsHandler(r *chi.Mux, service s.DomainsService) {
 
 	r.Route("/v1/domains", func(r chi.Router) {
 		r.Get("/", handler.GetAllDomains)
+		r.Get("/{id}", handler.GetDomainById)
 		r.Delete("/", handler.DeleteDomainById)
 		r.Post("/upload-txt", handler.UploadDomainsTxt)
 		r.Post("/create", handler.CreateDomain)
@@ -40,6 +41,18 @@ func (h *DomainsHandler) GetAllDomains(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	// Encode domains and write to response
 	json.NewEncoder(w).Encode(domains)
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *DomainsHandler) GetDomainById(w http.ResponseWriter, r *http.Request) {
+	domain, err := h.DomainsService.GetDomainById(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(domain)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -88,7 +101,6 @@ func (h *DomainsHandler) UploadDomainsTxt(w http.ResponseWriter, r *http.Request
 
 	w.WriteHeader(http.StatusCreated)
 }
-
 
 func (h *DomainsHandler) CreateDomain(w http.ResponseWriter, r *http.Request) { //r - comes from user, w - comes from server, writing to user
 

@@ -8,7 +8,8 @@ import (
 )
 
 type NucleiConfig struct {
-	MaxConcurrentScans int `mapstructure:"MAX_CONCURRENT_SCANS"`
+	MaxConcurrentScans int  `mapstructure:"MAX_CONCURRENT_SCANS"`
+	Debug              bool `mapstructure:"DEBUG"`
 
 	// Aws S3
 	AwsAccessKeyId        string `mapstructure:"AWS_ACCESS_KEY_ID"`

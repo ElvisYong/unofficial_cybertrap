@@ -35,6 +35,16 @@ func (s *DomainsService) GetAllDomains() ([]models.Domain, error) {
 	return domains, nil
 }
 
+func (s *DomainsService) GetDomainById(id string) (*models.Domain, error) {
+	domain, err := s.domainsRepo.GetDomainByID(id)
+	if err != nil {
+		log.Error().Err(err).Msg("Error fetching domain from the database")
+		return nil, err
+	}
+
+	return domain, nil
+}
+
 func (s *DomainsService) DeleteDomainById(id string) error {
 	err := s.domainsRepo.DeleteDomainById(id)
 	if err != nil {

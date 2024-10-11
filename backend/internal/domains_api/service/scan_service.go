@@ -24,6 +24,7 @@ type ScansService struct {
 func NewScansService(repository *r.ScansRepository, domainsRepo *r.DomainsRepository, scheduledScanRepo *r.ScheduledScanRepository, mqClient *rabbitmq.RabbitMQClient) *ScansService {
 	return &ScansService{
 		scansRepo:         repository,
+		domainsRepo:       domainsRepo,
 		scheduledScanRepo: scheduledScanRepo,
 		mqClient:          mqClient,
 	}
@@ -52,9 +53,17 @@ func (s *ScansService) GetAllScheduledScans() ([]models.Scan, error) {
 func (s *ScansService) ScanDomain(domainIdStr string, templateIds []string) error {
 	ScanID := primitive.NewObjectID()
 
+	// Get the domain from database
+	domain, err := s.domainsRepo.GetDomainByID(domainIdStr)
+	if err != nil {
+		log.Error().Err(err).Msg("Error fetching domain from the database")
+		return err
+	}
+
 	scanModel := models.Scan{
 		ID:          ScanID,
 		DomainID:    domainIdStr,
+		Domain:      domain.Domain,
 		TemplateIDs: templateIds,
 		Status:      "Pending",
 	}
@@ -75,7 +84,7 @@ func (s *ScansService) ScanDomain(domainIdStr string, templateIds []string) erro
 	}
 
 	// Send the message to the queue
-	err := s.mqClient.Publish(messageJson)
+	err = s.mqClient.Publish(messageJson)
 	if err != nil {
 		log.Error().Err(err).Msg("Error sending scan message to queue")
 		return err
