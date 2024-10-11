@@ -101,6 +101,10 @@ export default function SelectScan() {
             } else {
                 throw new Error('Failed to initiate scan');
             }
+
+            // Redirect to the scan results page after a successful scan
+            router.push("/dashboard/scans");
+
         } catch (error) {
             console.error('Error initiating scan:', error);
             toast({

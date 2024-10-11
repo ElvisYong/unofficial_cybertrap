@@ -53,7 +53,6 @@ export default function TargetsTable({ domains }: TargetsTableProps) {
                 key={domain.ID}
                 className="mb-2 w-full rounded-md bg-white p-4"
               >
-                {/* Mobile view content */}
               </div>
             ))}
           </div>
