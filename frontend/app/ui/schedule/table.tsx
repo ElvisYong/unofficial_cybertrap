@@ -112,23 +112,24 @@ export default function ScheduleScanTable() {
     fetchDomains();
   }, []);
 
-  // Function to delete a scheduled scan
-  const handleDelete = async (domain: string) => {
+
+  // Function to delete a scheduled scan by its ID
+  const handleDelete = async (scanID: string) => {
     try {
-      const response = await fetch(`${BASE_URL}/v1/scans/delete`, {
+      console.log('Deleting scan:', scanID);
+      const response = await fetch(`${BASE_URL}/v1/scans/schedule?ID=${scanID}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ domain }), // Send the domain for deletion
       });
 
       if (!response.ok) {
         throw new Error('Failed to delete scan');
       }
 
-      // Update state to remove the deleted scan
-      setScans(prevScans => prevScans.filter(scan => scan.domain !== domain));
+      // Update state to remove the deleted scan from the UI
+      setScans(prevScans => prevScans.filter(scan => scan.ID !== scanID));
       console.log('Scan deleted successfully');
     } catch (error) {
       console.error('Error deleting scheduled scan:', error);
@@ -143,30 +144,22 @@ export default function ScheduleScanTable() {
             <th className="px-4 py-2">Domain</th>
             <th className="px-4 py-2">Templates</th>
             <th className="px-4 py-2">Scheduled Date</th>
-            <th className="px-4 py-2">Actions</th> {/* New Actions Column */}
+            <th className="px-4 py-2">Actions</th> 
           </tr>
         </thead>
         <tbody>
           {scans.map((scan, index) => (
             <tr key={index} className="border-t">
-              {/* <td className="px-4 py-2">{scan.DomainID}</td>
-               */}
               <td>{getDomainNameById(scan.DomainID)}</td>
               <td className="px-4 py-2">{getTemplateNamesByIds(scan.TemplateIDs)}</td>
-              {/* <td>{getTemplateNamesByIds(scan.TemplateIDs)}</td> */}
-
-              {/* <td className="px-4 py-2">{scan.TemplateIDs.join(', ')}</td> */}
-              {/* <td className="px-4 py-2">{new Date(scan.scanDate).toLocaleDateString()}</td> */}
               <td className="px-4 py-2">{scan.ScanDate}</td>
-
               <td className="px-4 py-2 flex justify-center">
                 <button
-                  onClick={() => handleDelete(scan.domain)}
+                  onClick={() => handleDelete(scan.ID)}
                   className="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-sm flex items-center gap-1"
                   title="Delete"
                 >
                   <XMarkIcon className="h-4 w-4 text-white" />
-                  {/* <span>Delete</span> */}
                 </button>
               </td>
 
