@@ -1,0 +1,20 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: cybertrap-cluster
+  region: ap-southeast-1
+
+managedNodeGroups:
+  - name: arm64-nodes-medium
+    instanceType: t4g.medium  # Changed to t4g.medium for a medium-sized ARM64 instance
+    minSize: 1
+    maxSize: 5  # Increased max size for better scalability
+    desiredCapacity: 2  # Increased desired capacity
+    privateNetworking: true
+    labels:
+      lifecycle: ec2-autoscaler
+    iam:
+      withAddonPolicies:
+        autoScaler: true
+        ebs: true

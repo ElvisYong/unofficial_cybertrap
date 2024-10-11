@@ -8,20 +8,39 @@ This README provides instructions on how to set up an Amazon EKS (Elastic Kubern
 2. Install AWS CLI and configure it with your credentials
 3. Install kubectl: https://kubernetes.io/docs/tasks/tools/
 
+## Uploading image to ECR
+
+1. Login to ECR
+
+```
+aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com
+```
+
+2. Build the images
+```
+docker-compose build
+```
+
+3. Tag the domains api image
+
+```
+docker tag backend-domains_api 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:backend-api-v0.1.0 
+```
+
+4. Push the image to ECR
+
+```
+docker push 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:backend-api-v0.1.0
+```
+
+
 ## Creating the EKS Cluster
 
 1. Create a basic EKS cluster:
-
 ```
 eksctl create cluster \
 --name cybertrap-cluster \
 --region ap-southeast-1 \
---nodegroup-name standard-workers \
---node-type t3.small \
---nodes 3 \
---nodes-min 1 \
---nodes-max 4 \
---managed
 ```
 
 2. update the aws eks update-kubeconfig
@@ -30,11 +49,23 @@ eksctl create cluster \
 aws eks update-kubeconfig --name cybertrap-cluster --region ap-southeast-1
 ```
 
-3. Check the nodes in the cluster
+3. Apply the node group
+
+```
+eksctl apply -f k8s/nodes/arm64-nodegroup.yaml 
+```
+
+4. Check the nodes in the cluster
 
 ```
 kubectl get nodes
 ```
+
+## EKS Autoscaling group
+https://harsh05.medium.com/mastering-autoscaling-in-amazon-eks-scaling-your-kubernetes-workloads-dynamically-098c8e5f9902
+
+## Install Keda
+https://keda.sh/docs/2.15/deploy/
 
 ## Sealing the secrets
 
@@ -54,3 +85,9 @@ kubectl apply -f domains-api-deployment.yaml
 kubectl get pods
 ```
 
+## K8s
+Apply in the following order:
+1. asg
+2. nodes
+4. sealed-secrets
+3. deployments

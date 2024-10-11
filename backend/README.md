@@ -60,3 +60,9 @@ docker run -p 8080:8080 domains-api/cinema-movies:v1
 We will discuss more on what are the arguments and flags involved in the docker section.
 
 ---
+
+## Docker compose
+### Multi architecture build
+```
+docker buildx bake -f docker-compose.yml --push
+```

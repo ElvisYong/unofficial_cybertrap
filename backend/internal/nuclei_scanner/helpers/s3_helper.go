@@ -17,13 +17,14 @@ import (
 )
 
 type S3Helper struct {
-	client     *s3.Client
-	bucketName string
+	client                *s3.Client
+	templateBucketName    string
+	scanResultsBucketName string
 }
 
-func NewS3Helper(cfg aws.Config, bucketName string) (*S3Helper, error) {
+func NewS3Helper(cfg aws.Config, templateBucketName string, scanResultsBucketName string) (*S3Helper, error) {
 	client := s3.NewFromConfig(cfg)
-	return &S3Helper{client: client, bucketName: bucketName}, nil
+	return &S3Helper{client: client, templateBucketName: templateBucketName, scanResultsBucketName: scanResultsBucketName}, nil
 }
 
 func (s *S3Helper) DownloadFileFromURL(s3URL, dest string) error {
@@ -66,13 +67,13 @@ func (s *S3Helper) DownloadFileFromURL(s3URL, dest string) error {
 	return nil
 }
 
-func (s *S3Helper) UploadToS3(file *bytes.Reader, filename string) (string, error) {
+func (s *S3Helper) UploadScanResultsS3(file *bytes.Reader, filename string) (string, error) {
 	uploader := manager.NewUploader(s.client)
 
 	log.Info().Msgf("Uploading file to S3: %s", filename)
 
 	result, err := uploader.Upload(context.TODO(), &s3.PutObjectInput{
-		Bucket: &s.bucketName,
+		Bucket: &s.scanResultsBucketName,
 		Key:    &filename,
 		Body:   file,
 	})

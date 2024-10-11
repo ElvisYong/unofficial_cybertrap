@@ -8,10 +8,13 @@ import (
 )
 
 type NucleiConfig struct {
+	MaxConcurrentScans int `mapstructure:"MAX_CONCURRENT_SCANS"`
+
 	// Aws S3
-	AwsAccessKeyId     string `mapstructure:"AWS_ACCESS_KEY_ID"`
-	AwsSecretAccessKey string `mapstructure:"AWS_SECRET_ACCESS_KEY"`
-	BucketName         string `mapstructure:"BUCKET_NAME"`
+	AwsAccessKeyId        string `mapstructure:"AWS_ACCESS_KEY_ID"`
+	AwsSecretAccessKey    string `mapstructure:"AWS_SECRET_ACCESS_KEY"`
+	ScanResultsBucketName string `mapstructure:"SCAN_RESULTS_BUCKET_NAME"`
+	TemplatesBucketName   string `mapstructure:"TEMPLATES_BUCKET_NAME"`
 
 	// MongoDB
 	MongoDbUri  string `mapstructure:"MONGO_DB_URI"`

@@ -87,7 +87,7 @@ func main() {
 
 	// repositories DI
 	domainsRepo := r.NewDomainsRepository(mongoClient, appConfig.MongoDbName)
-	templatesRepo := r.NewTemplatesRepository(s3Client, appConfig.BucketName, mongoClient, appConfig.MongoDbName)
+	templatesRepo := r.NewTemplatesRepository(s3Client, appConfig.TemplateBucketName, mongoClient, appConfig.MongoDbName)
 	scansRepo := r.NewScansRepository(mongoClient, appConfig.MongoDbName)
 	scheduledScanRepo := r.NewScheduledScanRepository(mongoClient, appConfig.MongoDbName)
 

@@ -71,7 +71,9 @@ func (r *MongoHelper) UpdateScanResult(ctx context.Context, scan models.Scan) er
 func (r *MongoHelper) UpdateScanStatus(ctx context.Context, scanID primitive.ObjectID, status string) error {
 	collection := r.client.Database(r.database).Collection(ScansCollection)
 	filter := bson.M{"_id": scanID}
-	update := bson.M{"$set": bson.M{"status": status}}
+	update := bson.M{"$set": bson.M{
+		"status": status,
+	}}
 
 	_, err := collection.UpdateOne(ctx, filter, update)
 	if err != nil {

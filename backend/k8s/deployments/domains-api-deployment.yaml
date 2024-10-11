@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: domains-api-deployment
+  name: domains-api
   labels:
     app: domains-api
 spec:
@@ -16,24 +16,28 @@ spec:
     spec:
       containers:
       - name: domains-api
-        image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:backend-api-v0.1.0
+        image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:domains-api-v0.1.0
+        command: ["/bin/domains_api"]
         ports:
         - containerPort: 5000
         env:
         - name: SERVE_ADDRESS
-          value: ":5000"
+          value: "0.0.0.0:5000"
+
         - name: MONGO_DB_URI
           valueFrom:
             secretKeyRef:
               name: mongodb-secret
               key: uri
         - name: MONGO_DB_NAME
-          value: "your-database-name"
+          value: cybertrap
+
         - name: RABBIT_MQ_URI
           valueFrom:
             secretKeyRef:
               name: rabbitmq-secret
               key: uri
+
         - name: AWS_ACCESS_KEY_ID
           valueFrom:
             secretKeyRef:
@@ -44,8 +48,11 @@ spec:
             secretKeyRef:
               name: aws-secret
               key: secret-access-key
-        - name: BUCKET_NAME
-          value: "your-s3-bucket-name"
+
+        - name: SCAN_RESULTS_BUCKET_NAME
+          value: cybertrap-scan-results
+        - name: TEMPLATES_BUCKET_NAME
+          value: cybertrap-templates-bucket
 ---
 apiVersion: v1
 kind: Service

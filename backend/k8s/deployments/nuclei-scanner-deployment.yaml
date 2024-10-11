@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nuclei-scanner
+  labels:
+    app: nuclei-scanner
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nuclei-scanner
+  template:
+    metadata:
+      labels:
+        app: nuclei-scanner
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: arm64
+      containers:
+      - name: nuclei-scanner
+        image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:nuclei-scanner-v0.1.3
+        command: ["/bin/nuclei_scanner"]
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2048Mi"
+          limits:
+            cpu: "2000m"
+            memory: "3072Mi"
+        env:
+        - name: MAX_CONCURRENT_SCANS
+          value: "1"
+
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: aws-secret
+              key: access-key-id
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aws-secret
+              key: secret-access-key
+        - name: SCAN_RESULTS_BUCKET_NAME
+          value: "cybertrap-scan-results"
+        - name: TEMPLATES_BUCKET_NAME
+          value: "cybertrap-templates-bucket"
+        
+        - name: MONGO_DB_URI
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: uri
+        - name: MONGO_DB_NAME
+          value: "cybertrap"
+        
+        - name: RABBIT_MQ_URI
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secret
+              key: uri

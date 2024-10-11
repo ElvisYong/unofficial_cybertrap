@@ -24,5 +24,5 @@ RUN go build -o /bin/nuclei_scanner ./cmd/nuclei_scanner
 FROM alpine:latest
 
 # Copy binaries from the builder stage
-COPY --from=builder /bin/domains_api /bin/domains_api
 COPY --from=builder /bin/nuclei_scanner /bin/nuclei_scanner
+COPY --from=builder /bin/domains_api /bin/domains_api

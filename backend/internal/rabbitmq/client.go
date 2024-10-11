@@ -1,6 +1,7 @@
 package rabbitmq
 
 import (
+	"crypto/tls"
 	"encoding/json"
 
 	"github.com/rabbitmq/amqp091-go"
@@ -20,7 +21,22 @@ type RabbitMQClient struct {
 }
 
 func NewRabbitMQClient(amqpURL string) (*RabbitMQClient, error) {
-	conn, err := amqp091.Dial(amqpURL)
+	// Parse the AMQP URL
+	// Set up TLS configuration
+	uri, err := amqp091.ParseURI(amqpURL)
+	if err != nil {
+		log.Logger.Error().Err(err).Msg("Failed to parse AMQP URL")
+		return nil, err
+	}
+	serverName := uri.Host
+
+	tlsConfig := &tls.Config{
+		ServerName: serverName,
+		ClientAuth: tls.RequireAndVerifyClientCert,
+	}
+
+	// Dial with TLS
+	conn, err := amqp091.DialTLS(amqpURL, tlsConfig)
 	if err != nil {
 		log.Logger.Error().Err(err).Msg("Failed to connect to RabbitMQ")
 		return nil, err
@@ -120,6 +136,18 @@ func (r *RabbitMQClient) Consume() (<-chan amqp091.Delivery, error) {
 		return nil, err
 	}
 	return msgs, nil
+}
+
+func (r *RabbitMQClient) Get() (*amqp091.Delivery, bool, error) {
+	msg, ok, err := r.channel.Get(
+		"nuclei_scan_queue", // queue
+		false,               // auto-ack
+	)
+	if err != nil {
+		log.Logger.Error().Err(err).Msg("Failed to get message from queue")
+		return nil, false, err
+	}
+	return &msg, ok, nil
 }
 
 func (r *RabbitMQClient) Close() {

@@ -110,7 +110,7 @@ func (nh *NucleiHelper) ScanWithNuclei(scanID primitive.ObjectID, domain string,
 		currentTimeMillis := currentTime.UnixNano() / int64(time.Millisecond)
 		fileName := result.TemplateID + "_" + result.Host + "_" + strconv.FormatInt(currentTimeMillis, 10) + ".json"
 
-		s3URL, err := nh.s3Helper.UploadToS3(multipartFile, fileName)
+		s3URL, err := nh.s3Helper.UploadScanResultsS3(multipartFile, fileName)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to upload result to s3 for scanID, templateID: " + scanID.Hex() + ", " + result.TemplateID)
 			continue
@@ -144,6 +144,7 @@ func (nh *NucleiHelper) ScanWithNuclei(scanID primitive.ObjectID, domain string,
 		TemplateIDs: templateFiles,
 		Error:       nil,
 		S3ResultURL: scanResultUrls,
+		ScanDate:    time.Now(),
 		Status:      "completed",
 	}
 
