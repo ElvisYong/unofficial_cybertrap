@@ -18,6 +18,12 @@ interface Template {
   Type: string;
   CreatedAt: string;
 }
+interface Domain {
+    ID: string;
+    Domain: string;
+    UploadedAt: string;
+    UserID: string; 
+  }
 
 export default function SelectScan() {
     const [templates, setTemplates] = useState<Template[]>([]);
@@ -54,6 +60,32 @@ export default function SelectScan() {
                 : [...prev, templateId]
         );
     };
+    
+    //domains
+    const [domains, setDomains] = useState<Domain[]>([]);
+    const fetchDomains = async () => {
+        const endpoint = `${BASE_URL}/v1/domains`;
+        try {
+        const response = await fetch(endpoint);
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        const data: Domain[] = await response.json();
+        setDomains(data);
+        console.log('domain', data);
+        } catch (error) {
+        console.error('Error fetching domains:', error);
+        }
+    };
+    useEffect(() => {
+        fetchDomains();
+    }, []);
+
+    // Function to get the domain name by ID
+    const getDomainNameById = (domainID: string) => {
+        const domain = domains.find(d => d.ID === domainID);
+        return domain ? domain.Domain : 'Unknown Domain';
+    };
 
     const handleSubmit = async (event: React.FormEvent) => {
         event.preventDefault();
@@ -70,8 +102,14 @@ export default function SelectScan() {
         }
     
         const templateIds = scanAllTemplates ? [] : selectedTemplates;
-        const domainIdScanAll = templates.length > 0 ? templates[0].ID : "";
+        // const domainIdScanAll = templates.length > 0 ? templates[0].ID : "";
 
+        const domainIdScanAll = target;
+
+        console.log('template', templateIds);
+        console.log('DIF', domainIdScanAll);
+        // console.log('name', domainName)
+    
         try {
             const response = await fetch(`${BASE_URL}/v1/scans`, {
                 method: 'POST',

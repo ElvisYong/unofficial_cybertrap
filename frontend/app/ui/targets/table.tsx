@@ -92,14 +92,14 @@ export default function TargetsTable({ domains }: TargetsTableProps) {
                   <td className="whitespace-nowrap py-3 pl-6 pr-3">
                     <div className="flex space-x-4">
                       <button
-                        onClick={() => handleViewDetails(domain.Domain)}
+                        onClick={() => handleViewDetails(domain.ID)}
                         className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded flex items-center gap-2"
                       >
                         <InformationCircleIcon className="h-4 w-4 text-white" />
                         <span>Target Summary</span>
                       </button>
                       <button 
-                        onClick={() => selectScanEngine(domain.Domain)}
+                        onClick={() => selectScanEngine(domain.ID)}
                         className="bg-green-600  hover:bg-green-500 text-white px-4 py-2 rounded flex items-center gap-2"
                       >
                         <BoltIcon className="h-4 w-4 text-white" />
