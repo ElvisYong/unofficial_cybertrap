@@ -250,7 +250,7 @@ export default function ScanResultsTable() {
                     {scan.Domain || getDomainNameById(scan.DomainID)}
                   </td>
                   <td className="whitespace-nowrap px-3 py-3">
-                    {scan.TemplateIDs.join(', ') || 'N/A'}
+                    {scan.TemplateIDs.join(', ') || 'All Github Default Template'}
                   </td>
                   <td className="whitespace-nowrap px-3 py-3">
                     {scan.Status.toLowerCase() === 'completed' 

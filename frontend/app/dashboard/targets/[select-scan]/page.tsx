@@ -71,6 +71,9 @@ export default function SelectScan() {
     
         const templateIds = scanAllTemplates ? [] : selectedTemplates;
         const domainIdScanAll = templates.length > 0 ? templates[0].ID : "";
+
+        // console.log(templateIds);
+        // console.log(domainIdScanAll);
     
         try {
             const response = await fetch(`${BASE_URL}/v1/scans`, {
