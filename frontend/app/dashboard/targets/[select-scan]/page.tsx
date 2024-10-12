@@ -151,7 +151,7 @@ export default function SelectScan() {
                 <p className="mb-4 text-gray-600">Target: {target}</p>
                 <form onSubmit={handleSubmit} className="space-y-4 flex-grow">
                     <div className="space-y-4">
-                        {templates.map(template => (
+                        {/* {templates.map(template => (
                             <div key={template.ID} className="flex items-center space-x-3">
                                 <Checkbox
                                     id={template.ID}
@@ -160,7 +160,7 @@ export default function SelectScan() {
                                 />
                                 <label htmlFor={template.ID} className="text-gray-700">{template.Name}</label>
                             </div>
-                        ))}
+                        ))} */}
                         <div className="flex items-center space-x-3">
                             <Checkbox
                                 id="scanAllTemplates"
