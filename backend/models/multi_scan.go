@@ -7,12 +7,12 @@ import (
 )
 
 type MultiScan struct {
-	ID             primitive.ObjectID `bson:"_id,omitempty"`
-	ScanIDs        []string           `bson:"scan_ids"`
-	Name           string             `bson:"name"`
-	TotalScans     int                `bson:"total_scans"`
-	CompletedScans int                `bson:"completed_scans"`
-	FailedScans    int                `bson:"failed_scans"`
-	Status         string             `bson:"status"`
-	ScanDate       time.Time          `bson:"scan_date,omitempty"`
+	ID             primitive.ObjectID   `bson:"_id,omitempty"`
+	ScanIDs        []string             `bson:"scan_ids"`
+	Name           string               `bson:"name"`
+	TotalScans     int                  `bson:"total_scans"`
+	CompletedScans []primitive.ObjectID `bson:"completed_scans"`
+	FailedScans    []primitive.ObjectID `bson:"failed_scans"`
+	Status         string               `bson:"status"` // We will only cater for "in-progress" and "completed"
+	ScanDate       time.Time            `bson:"scan_date,omitempty"`
 }

@@ -27,7 +27,7 @@ func NewNucleiHelper(s3Helper *S3Helper, mongoHelper *MongoHelper) *NucleiHelper
 	}
 }
 
-func (nh *NucleiHelper) ScanWithNuclei(scanID primitive.ObjectID, domain string, domainId primitive.ObjectID, templateFiles []string, scanAllNuclei bool, debug bool) {
+func (nh *NucleiHelper) ScanWithNuclei(multiScanId primitive.ObjectID, scanID primitive.ObjectID, domain string, domainId primitive.ObjectID, templateFiles []string, scanAllNuclei bool, debug bool) {
 	// Check the length of templateFiles
 	templateSources := nuclei.TemplateSources{
 		Templates: templateFiles,
@@ -73,6 +73,7 @@ func (nh *NucleiHelper) ScanWithNuclei(scanID primitive.ObjectID, domain string,
 		log.Error().Err(err).Msg("Failed to load templates")
 		// Update scan status to "failed"
 		nh.mongoHelper.UpdateScanStatus(context.Background(), scanID, "failed")
+		nh.mongoHelper.UpdateMultiScanStatus(context.Background(), multiScanId, "failed", nil, &scanID)
 		return
 	}
 
@@ -91,6 +92,7 @@ func (nh *NucleiHelper) ScanWithNuclei(scanID primitive.ObjectID, domain string,
 		log.Error().Err(err).Msg("Failed to execute scan")
 		// Update scan status to "failed"
 		nh.mongoHelper.UpdateScanStatus(context.Background(), scanID, "failed")
+		nh.mongoHelper.UpdateMultiScanStatus(context.Background(), multiScanId, "failed", &scanID, nil)
 		return
 	}
 	log.Info().Msg("Scan completed")
@@ -160,6 +162,12 @@ func (nh *NucleiHelper) ScanWithNuclei(scanID primitive.ObjectID, domain string,
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to update scan result")
 		nh.mongoHelper.UpdateScanStatus(context.Background(), scanID, "failed")
+		return
+	}
+
+	err = nh.mongoHelper.UpdateMultiScanStatus(context.Background(), multiScanId, "completed", &scanID, nil)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to update multi scan status")
 		return
 	}
 
