@@ -155,4 +155,6 @@ func (r *MongoHelper) FindMultiScanByID(ctx context.Context, multiScanId primiti
 		log.Error().Err(err).Msg("Failed to find multi scan by ID")
 		return multiScan, err
 	}
+
+	return multiScan, nil
 }
