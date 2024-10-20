@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 import { BASE_URL } from "@/data";
@@ -30,6 +31,7 @@ export default function SelectScan() {
     const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
     const [scanAllTemplates, setScanAllTemplates] = useState(false);
     const [target, setTarget] = useState("");
+    const [scanName, setScanName] = useState("");
     const router = useRouter();
     const { toast } = useToast();
 
@@ -119,6 +121,7 @@ export default function SelectScan() {
                 body: JSON.stringify({
                     domainId: domainIdScanAll,
                     templateIds,
+                    scanName,
                 }),
             });
     
@@ -151,6 +154,20 @@ export default function SelectScan() {
                 <p className="mb-4 text-gray-600">Target: {target}</p>
                 <form onSubmit={handleSubmit} className="space-y-4 flex-grow">
                     <div className="space-y-4">
+                        <div>
+                            <label htmlFor="scanName" className="block text-sm font-medium text-gray-700 mb-1">
+                                Scan Name
+                            </label>
+                            <Input
+                                id="scanName"
+                                type="text"
+                                value={scanName}
+                                onChange={(e) => setScanName(e.target.value)}
+                                placeholder="Enter scan name"
+                                className="w-full"
+                                required
+                            />
+                        </div>
                         {/* {templates.map(template => (
                             <div key={template.ID} className="flex items-center space-x-3">
                                 <Checkbox
@@ -173,7 +190,7 @@ export default function SelectScan() {
                     <Button
                         type="submit"
                         className="w-full py-2 mt-4 text-white bg-green-600 rounded-md hover:bg-green-700"
-                        disabled={selectedTemplates.length === 0 && !scanAllTemplates}
+                        disabled={!scanName.trim() || (!scanAllTemplates && selectedTemplates.length === 0)}
                     >
                         Start Scan
                     </Button>
