@@ -8,7 +8,7 @@ import (
 
 type Scan struct {
 	ID          primitive.ObjectID `bson:"_id,omitempty"` //  Not gonna be used in the code, but only just for MongoDB
-	DomainID    string             `bson:"domain_id"`
+	DomainId    []string           `bson:"domain_id"`
 	Domain      string             `bson:"domain"`
 	TemplateIDs []string           `bson:"template_ids"` // The unique template ID which we use to identify the template
 	ScanDate    time.Time          `bson:"scan_date,omitempty"`
