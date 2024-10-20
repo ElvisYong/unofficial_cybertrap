@@ -6,9 +6,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      platforms:
-        - linux/amd64
-        - linux/arm64
     command: [ "/bin/domains_api" ]
     ports:
       - "5000:5000"
@@ -20,9 +17,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      platforms:
-        - linux/amd64
-        - linux/arm64
     command: [ "/bin/nuclei_scanner" ]
     env_file:
       - .env.nuclei

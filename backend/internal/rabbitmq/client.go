@@ -12,12 +12,12 @@ import (
 // ScanMessage defines the structure of the message received from RabbitMQ
 // We just check the primitive.ObjectID at the API layer
 type ScanMessage struct {
-	MultiScanId   primitive.ObjectID `json:"multi_scan_id"`
-	ScanId        primitive.ObjectID `json:"scan_id"`
-	TemplateIds   []string           `json:"template_ids"`
-	DomainId      primitive.ObjectID `json:"domain_id"`
-	Domain        string             `json:"domain"`
-	ScanAllNuclei bool               `json:"scan_all_nuclei"`
+	MultiScanId   primitive.ObjectID   `json:"multi_scan_id"`
+	ScanId        primitive.ObjectID   `json:"scan_id"`
+	TemplateIds   []primitive.ObjectID `json:"template_ids"`
+	DomainId      primitive.ObjectID   `json:"domain_id"`
+	Domain        string               `json:"domain"`
+	ScanAllNuclei bool                 `json:"scan_all_nuclei"`
 }
 
 type RabbitMQClient struct {

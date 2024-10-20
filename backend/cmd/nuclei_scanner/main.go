@@ -139,39 +139,33 @@ func main() {
 				// Fetch template and domain from MongoDB
 				var wg sync.WaitGroup
 
-				templateFiles := make([]string, 0, len(scanMsg.TemplateIds))
+				templateFilePaths := make([]string, 0, len(scanMsg.TemplateIds))
 				errChan := make(chan error, len(scanMsg.TemplateIds))
 
 				log.Info().Msgf("Downloading templates")
-				for _, templateIDStr := range scanMsg.TemplateIds {
+				for _, templateId := range scanMsg.TemplateIds {
 					wg.Add(1)
-					go func(idStr string) {
+					go func(templateId primitive.ObjectID) {
 						defer wg.Done()
 
-						templateID, err := primitive.ObjectIDFromHex(idStr)
+						template, err := mongoHelper.FindTemplateByID(context.Background(), templateId)
 						if err != nil {
-							errChan <- fmt.Errorf("invalid template ID: %s, error: %w", idStr, err)
+							errChan <- fmt.Errorf("failed to find template by ID: %s, error: %w", templateId.Hex(), err)
 							return
 						}
 
-						template, err := mongoHelper.FindTemplateByID(context.Background(), templateID)
-						if err != nil {
-							errChan <- fmt.Errorf("failed to find template by ID: %s, error: %w", idStr, err)
-							return
-						}
-
-						templateFilePath := filepath.Join(templateDir, fmt.Sprintf("template-%s.yaml", idStr))
+						templateFilePath := filepath.Join(templateDir, fmt.Sprintf("template-%s.yaml", templateId.Hex()))
 
 						log.Info().Msgf("Downloading template %s to %s", template.S3URL, templateFilePath)
 
 						err = s3Helper.DownloadFileFromURL(template.S3URL, templateFilePath)
 						if err != nil {
-							errChan <- fmt.Errorf("failed to download template file from S3 for ID: %s, error: %w", idStr, err)
+							errChan <- fmt.Errorf("failed to download template file from S3 for ID: %s, error: %w", templateId.Hex(), err)
 							return
 						}
 
-						templateFiles = append(templateFiles, templateFilePath)
-					}(templateIDStr)
+						templateFilePaths = append(templateFilePaths, templateFilePath)
+					}(templateId)
 				}
 
 				wg.Wait()
@@ -189,7 +183,7 @@ func main() {
 
 				// Ensure all downloaded files are deleted after scan
 				defer func() {
-					for _, file := range templateFiles {
+					for _, file := range templateFilePaths {
 						// Don't delete TemplatesDirectory
 						if file == nuclei.DefaultConfig.TemplatesDirectory {
 							continue
@@ -200,7 +194,7 @@ func main() {
 
 				log.Info().Msg("Successfully downloaded templates")
 
-				nh.ScanWithNuclei(scanMsg.MultiScanId, scanMsg.ScanId, scanMsg.Domain, scanMsg.DomainId, templateFiles, scanMsg.ScanAllNuclei, config.Debug)
+				nh.ScanWithNuclei(scanMsg.MultiScanId, scanMsg.ScanId, scanMsg.Domain, scanMsg.DomainId, templateFilePaths, scanMsg.TemplateIds, scanMsg.ScanAllNuclei, config.Debug)
 			}(msg)
 		}
 	}

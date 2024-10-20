@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/gorilla/schema"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"github.com/shannevie/unofficial_cybertrap/backend/internal/domains_api/dto"
 	s "github.com/shannevie/unofficial_cybertrap/backend/internal/domains_api/service"
@@ -24,9 +25,8 @@ func NewScansHandler(r *chi.Mux, service s.ScansService) {
 	r.Route("/v1/scans", func(r chi.Router) {
 		r.Get("/", handler.GetAllScans)
 		r.Post("/", handler.ScanDomains)
-		r.Post("/scan-all", handler.ScanAllDomains)
 		r.Get("/schedule", handler.GetAllScheduledScans)
-		r.Post("/schedule", handler.ScheduleSingleScan)
+		r.Post("/schedule", handler.ScheduleScan)
 		r.Delete("/schedule", handler.DeleteScheduledScanRequest)
 	})
 }
@@ -60,19 +60,31 @@ func (h *ScansHandler) ScanDomains(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.ScansService.ScanDomains(req.DomainIds, req.TemplateIds, req.ScanAllNuclei)
-	if err != nil {
-		http.Error(w, "Failed to scan domain", http.StatusInternalServerError)
-		return
+	// Convert domainIds to []primitive.ObjectID
+	domainIds := make([]primitive.ObjectID, 0)
+	for _, domainId := range req.DomainIds {
+		domainObjectID, err := primitive.ObjectIDFromHex(domainId)
+		if err != nil {
+			http.Error(w, "Invalid domain ID", http.StatusBadRequest)
+			return
+		}
+		domainIds = append(domainIds, domainObjectID)
 	}
 
-	w.WriteHeader(http.StatusOK)
-}
+	// Convert templateIds to []primitive.ObjectID
+	templateIds := make([]primitive.ObjectID, 0)
+	for _, templateId := range req.TemplateIds {
+		templateObjectID, err := primitive.ObjectIDFromHex(templateId)
+		if err != nil {
+			http.Error(w, "Invalid template ID", http.StatusBadRequest)
+			return
+		}
+		templateIds = append(templateIds, templateObjectID)
+	}
 
-func (h *ScansHandler) ScanAllDomains(w http.ResponseWriter, r *http.Request) {
-	err := h.ScansService.ScanAllDomains()
+	err := h.ScansService.ScanDomains(domainIds, templateIds, req.ScanAllNuclei)
 	if err != nil {
-		http.Error(w, "Failed to scan all domains", http.StatusInternalServerError)
+		http.Error(w, "Failed to scan domain", http.StatusInternalServerError)
 		return
 	}
 
@@ -93,8 +105,8 @@ func (h *ScansHandler) GetAllScheduledScans(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusOK)
 }
 
-func (h *ScansHandler) ScheduleSingleScan(w http.ResponseWriter, r *http.Request) {
-	req := &dto.ScheduleSingleScanRequest{}
+func (h *ScansHandler) ScheduleScan(w http.ResponseWriter, r *http.Request) {
+	req := &dto.ScheduleScanRequest{}
 
 	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
 		http.Error(w, "Invalid JSON body", http.StatusBadRequest)
@@ -102,16 +114,16 @@ func (h *ScansHandler) ScheduleSingleScan(w http.ResponseWriter, r *http.Request
 	}
 	defer r.Body.Close()
 
-	// Call to ScansService to save the new scan domain and templates
-	err := h.ScansService.CreateScheduleScanRecord(req.DomainId, req.ScheduledDate, req.TemplateIds)
+	// Call to ScansService to schedule scan for all domains
+	err := h.ScansService.ScheduleScan(req)
 	if err != nil {
-		http.Error(w, "Failed to create scan record", http.StatusInternalServerError)
+		http.Error(w, "Failed to schedule scan for all domains", http.StatusInternalServerError)
 		return
 	}
 
 	// Return success response
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Scan record created successfully"))
+	w.Write([]byte("Scan scheduled for all domains successfully"))
 }
 
 func (h *ScansHandler) DeleteScheduledScanRequest(w http.ResponseWriter, r *http.Request) {

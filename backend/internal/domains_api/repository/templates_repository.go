@@ -69,6 +69,30 @@ func (r *TemplatesRepository) UploadToMongo(template *models.Template) (string, 
 	return insertedID.Hex(), nil
 }
 
+// GetTemplatesByIDs retrieves templates from MongoDB by their IDs
+func (r *TemplatesRepository) GetTemplatesByIDs(ids []primitive.ObjectID) ([]models.Template, error) {
+	collection := r.mongoClient.Database(r.mongoDbName).Collection(r.collectionName)
+
+	// Create a filter to match documents with the given IDs
+	filter := bson.M{"_id": bson.M{"$in": ids}}
+
+	// Execute the query
+	cursor, err := collection.Find(context.Background(), filter)
+	if err != nil {
+		log.Error().Err(err).Msg("Error fetching templates from MongoDB")
+		return nil, err
+	}
+	defer cursor.Close(context.Background())
+
+	var templates []models.Template
+	if err = cursor.All(context.Background(), &templates); err != nil {
+		log.Error().Err(err).Msg("Error decoding templates from MongoDB cursor")
+		return nil, err
+	}
+
+	return templates, nil
+}
+
 func (r *TemplatesRepository) GetAllTemplates() ([]models.Template, error) {
 	collection := r.mongoClient.Database(r.mongoDbName).Collection(r.collectionName)
 	cursor, err := collection.Find(context.Background(), bson.M{})

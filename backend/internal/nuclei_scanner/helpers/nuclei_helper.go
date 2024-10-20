@@ -27,10 +27,19 @@ func NewNucleiHelper(s3Helper *S3Helper, mongoHelper *MongoHelper) *NucleiHelper
 	}
 }
 
-func (nh *NucleiHelper) ScanWithNuclei(multiScanId primitive.ObjectID, scanID primitive.ObjectID, domain string, domainId primitive.ObjectID, templateFiles []string, scanAllNuclei bool, debug bool) {
+func (nh *NucleiHelper) ScanWithNuclei(
+	multiScanId primitive.ObjectID,
+	scanID primitive.ObjectID,
+	domain string,
+	domainId primitive.ObjectID,
+	templateFilePaths []string,
+	templateIDs []primitive.ObjectID,
+	scanAllNuclei bool,
+	debug bool,
+) {
 	// Check the length of templateFiles
 	templateSources := nuclei.TemplateSources{
-		Templates: templateFiles,
+		Templates: templateFilePaths,
 	}
 
 	var ne *nuclei.NucleiEngine
@@ -151,7 +160,7 @@ func (nh *NucleiHelper) ScanWithNuclei(multiScanId primitive.ObjectID, scanID pr
 		ID:          scanID,
 		DomainId:    domainId,
 		Domain:      domain,
-		TemplateIDs: templateFiles,
+		TemplateIDs: templateIDs,
 		Error:       nil,
 		S3ResultURL: scanResultUrls,
 		ScanDate:    time.Now(),

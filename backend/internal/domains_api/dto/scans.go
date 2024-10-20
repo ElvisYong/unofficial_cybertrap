@@ -7,9 +7,11 @@ type ScanDomainRequest struct {
 	Name          string   `schema:"name"`
 }
 
-type ScheduleSingleScanRequest struct {
-	DomainId      string   `schema:"domainId"`
+type ScheduleScanRequest struct {
+	Id            string   `schema:"id"`
+	DomainIds     []string `schema:"domainIds"`
 	TemplateIds   []string `schema:"templateIds"`
+	ScanAll       bool     `schema:"scanAll"`
 	ScheduledDate string   `schema:"scheduledDate"`
 }
 
@@ -18,10 +20,11 @@ type DeleteScheduledScanRequest struct {
 }
 
 type ScheduleScanResponse struct {
-	ID            string   `json:"id"`
-	DomainId      string   `json:"domainId"`
-	TemplateIds   []string `json:"templateIds"`
-	ScheduledDate string   `json:"scheduledDate"`
+	ID            string                 `json:"id"`
+	Domains       []GetDomainResponse    `json:"domains"`
+	Templates     []GetTemplatesResponse `json:"templates"`
+	ScanAll       bool                   `json:"scanAll"`
+	ScheduledDate string                 `json:"scheduledDate"`
 }
 
 type GetAllScansResponse struct {
