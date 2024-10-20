@@ -146,3 +146,13 @@ func (r *MongoHelper) UpdateMultiScanStatus(ctx context.Context, multiScanId pri
 
 	return nil
 }
+
+func (r *MongoHelper) FindMultiScanByID(ctx context.Context, multiScanId primitive.ObjectID) (models.MultiScan, error) {
+	collection := r.client.Database(r.database).Collection(MultiScansCollection)
+	var multiScan models.MultiScan
+	err := collection.FindOne(ctx, bson.M{"_id": multiScanId}).Decode(&multiScan)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to find multi scan by ID")
+		return multiScan, err
+	}
+}

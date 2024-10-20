@@ -165,10 +165,27 @@ func (nh *NucleiHelper) ScanWithNuclei(multiScanId primitive.ObjectID, scanID pr
 		return
 	}
 
-	err = nh.mongoHelper.UpdateMultiScanStatus(context.Background(), multiScanId, "completed", &scanID, nil)
+	// First, update the completed scans for this multi-scan
+	err = nh.mongoHelper.UpdateMultiScanStatus(context.Background(), multiScanId, "", &scanID, nil)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to update multi scan status")
 		return
+	}
+
+	// Then, fetch the updated multi-scan to check if all scans are completed
+	multiScan, err := nh.mongoHelper.FindMultiScanByID(context.Background(), multiScanId)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to fetch multi scan")
+		return
+	}
+
+	if len(multiScan.CompletedScans) == multiScan.TotalScans {
+		// All scans are completed, update the status to "completed"
+		err = nh.mongoHelper.UpdateMultiScanStatus(context.Background(), multiScanId, "completed", nil, nil)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to update multi scan status to completed")
+			return
+		}
 	}
 
 	log.Info().Msg("Completed scan and updated scan result for scanID: " + scanID.Hex())
