@@ -1,0 +1,50 @@
+on:
+  push:
+    tags:
+      - backend-api-v*
+    paths:
+      - .github/workflows/backend-api.yml
+      - backend/**
+
+name: Backend API build
+
+env:
+  REGION: ap-southeast-1
+  ROLE: github-actions-role
+  ECR_REPOSITORY: cybertrap-backend
+  ACCOUNT_ID: 897729130899
+
+permissions:
+  id-token: write # This is required for requesting the JWT
+  contents: read  # This is required for actions/checkout
+
+jobs:
+  backend-api-build:
+    runs-on:
+      group: Default
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.ACCOUNT_ID }}:role/${{ env.ROLE }}
+          aws-region: ${{ env.REGION }}
+      
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push docker image to Amazon ECR
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ${{ env.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ github.ref_name }}
+        run: |
+          docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG ./backend
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+
+      - name: Clean up directory
+        run: rm -rf backend/*
