@@ -125,29 +125,13 @@ func main() {
 
 				log.Info().Msgf("Processing message: %s", msg.Body)
 
-				// Create a scan ID for the scan which will be used to store the results
-				scanID, _ := primitive.ObjectIDFromHex(scanMsg.ScanID)
 				nh := helpers.NewNucleiHelper(s3Helper, mongoHelper)
 
 				// Update scan status to "in-progress"
 				log.Info().Msgf("Updating scan status to in-progress")
-				err = mongoHelper.UpdateScanStatus(context.Background(), scanID, "in-progress")
+				err = mongoHelper.UpdateScanStatus(context.Background(), scanMsg.ScanId, "in-progress")
 				if err != nil {
 					log.Error().Err(err).Msg("Failed to update scan status")
-					return
-				}
-
-				// Fetch the domain from MongoDB
-				domainID, err := primitive.ObjectIDFromHex(scanMsg.DomainID)
-				if err != nil {
-					log.Error().Err(err).Msg("Failed to convert domain ID to ObjectID")
-					return
-				}
-
-				domain, err := mongoHelper.FindDomainByID(context.Background(), domainID)
-				if err != nil {
-					log.Error().Err(err).Msg("Failed to find domain by ID")
-					// TODO: Log the error into the logs db
 					return
 				}
 
@@ -155,11 +139,11 @@ func main() {
 				// Fetch template and domain from MongoDB
 				var wg sync.WaitGroup
 
-				templateFiles := make([]string, 0, len(scanMsg.TemplateIDs))
-				errChan := make(chan error, len(scanMsg.TemplateIDs))
+				templateFiles := make([]string, 0, len(scanMsg.TemplateIds))
+				errChan := make(chan error, len(scanMsg.TemplateIds))
 
 				log.Info().Msgf("Downloading templates")
-				for _, templateIDStr := range scanMsg.TemplateIDs {
+				for _, templateIDStr := range scanMsg.TemplateIds {
 					wg.Add(1)
 					go func(idStr string) {
 						defer wg.Done()
@@ -216,7 +200,7 @@ func main() {
 
 				log.Info().Msg("Successfully downloaded templates")
 
-				nh.ScanWithNuclei(scanID, domain.Domain, domainID.Hex(), templateFiles, config.Debug)
+				nh.ScanWithNuclei(scanMsg.ScanId, scanMsg.Domain, scanMsg.DomainId, templateFiles, scanMsg.ScanAllNuclei, config.Debug)
 			}(msg)
 		}
 	}

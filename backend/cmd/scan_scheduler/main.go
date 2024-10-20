@@ -113,8 +113,8 @@ func main() {
 	for _, scan := range scanArray {
 
 		messageJson := rabbitmq.ScanMessage{
-			ScanID:      scan.ID.Hex(),
-			TemplateIDs: scan.TemplateIDs,
+			ScanId:      scan.ID.Hex(),
+			TemplateIds: scan.TemplateIDs,
 			DomainID:    scan.DomainID,
 		}
 

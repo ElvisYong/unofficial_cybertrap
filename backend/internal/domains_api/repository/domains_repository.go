@@ -43,6 +43,8 @@ func (r *DomainsRepository) GetAllDomains() ([]models.Domain, error) {
 	return domains, nil
 }
 
+
+
 // GetDomainsByIDs retrieves multiple domains by their IDs
 func (r *DomainsRepository) GetDomainsByIDs(ids []string) ([]models.Domain, error) {
 	collection := r.mongoClient.Database(r.mongoDbName).Collection(r.collectionName)

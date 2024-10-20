@@ -1,15 +1,15 @@
 package dto
 
 type ScanDomainRequest struct {
-	DomainIDs   []string `schema:"domainIds"`
-	TemplateIDs []string `schema:"templateIds"`
-	ScanAll     bool     `schema:"scanAll"`
-	Name        string   `schema:"name"`
+	DomainIds     []string `schema:"domainIds"`
+	TemplateIds   []string `schema:"templateIds"`
+	ScanAllNuclei bool     `schema:"scanAllNuclei"`
+	Name          string   `schema:"name"`
 }
 
 type ScheduleSingleScanRequest struct {
-	DomainID      string   `schema:"domainId"`
-	TemplateIDs   []string `schema:"templateIds"`
+	DomainId      string   `schema:"domainId"`
+	TemplateIds   []string `schema:"templateIds"`
 	ScheduledDate string   `schema:"scheduledDate"`
 }
 
@@ -19,16 +19,16 @@ type DeleteScheduledScanRequest struct {
 
 type ScheduleScanResponse struct {
 	ID            string   `json:"id"`
-	DomainID      string   `json:"domainId"`
-	TemplateIDs   []string `json:"templateIds"`
+	DomainId      string   `json:"domainId"`
+	TemplateIds   []string `json:"templateIds"`
 	ScheduledDate string   `json:"scheduledDate"`
 }
 
 type GetAllScansResponse struct {
 	ID          string   `json:"id"`
-	DomainID    string   `json:"domainId"`
+	DomainId    string   `json:"domainId"`
 	Domain      string   `json:"domain"`
-	TemplateIDs []string `json:"templateIds"`
+	TemplateIds []string `json:"templateIds"`
 	ScanDate    string   `json:"scanDate"`
 	Status      string   `json:"status"`
 	Error       string   `json:"error,omitempty"`
