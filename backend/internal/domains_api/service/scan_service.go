@@ -54,7 +54,7 @@ func (s *ScansService) GetAllScans() ([]dto.GetAllScansResponse, error) {
 	return scansResponse, nil
 }
 
-func (s *ScansService) ScanDomains(domainIdStrs []string, templateIds []string) error {
+func (s *ScansService) ScanDomains(domainIdStrs []string, templateIds []string, scanAllNuclei bool) error {
 	multiScanId := primitive.NewObjectID()
 
 	// Get all domains at once
@@ -96,10 +96,12 @@ func (s *ScansService) ScanDomains(domainIdStrs []string, templateIds []string) 
 
 		// Create a new scan message for RabbitMQ
 		messageJson := rabbitmq.ScanMessage{
-			MultiScanId: multiScanId,
-			ScanId:      scanId,
-			TemplateIds: templateIds,
-			DomainId:    domain.ID,
+			MultiScanId:   multiScanId,
+			ScanId:        scanId,
+			TemplateIds:   templateIds,
+			DomainId:      domain.ID,
+			Domain:        domain.Domain,
+			ScanAllNuclei: scanAllNuclei,
 		}
 
 		// Send the message to the queue

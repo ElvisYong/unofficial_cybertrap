@@ -60,7 +60,7 @@ func (h *ScansHandler) ScanDomains(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.ScansService.ScanDomains(req.DomainIds, req.TemplateIds)
+	err := h.ScansService.ScanDomains(req.DomainIds, req.TemplateIds, req.ScanAllNuclei)
 	if err != nil {
 		http.Error(w, "Failed to scan domain", http.StatusInternalServerError)
 		return
