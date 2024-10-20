@@ -78,8 +78,8 @@ func (h *DomainsHandler) DeleteDomainById(w http.ResponseWriter, r *http.Request
 // The file should contain a list of domains separated by new lines
 // limitations: if a single domain is already in the database, the whole file will be rejected
 func (h *DomainsHandler) UploadDomainsTxt(w http.ResponseWriter, r *http.Request) {
-	// Parse the multipart form in the request
-	err := r.ParseMultipartForm(10 << 20) // 10MB
+	// Parse the multipart form in the request without size limit
+	err := r.ParseMultipartForm(0)
 	if err != nil {
 		http.Error(w, "Unable to parse form", http.StatusBadRequest)
 		return
@@ -110,7 +110,7 @@ func (h *DomainsHandler) CreateDomain(w http.ResponseWriter, r *http.Request) { 
 		http.Error(w, "Invalid query parameters", http.StatusBadRequest)
 		return
 	}
-	// // Extract the "domains" query parameter
+	// Extract the "domains" query parameter
 	// domainsQuery := r.URL.Query().Get("domains")
 
 	// // Check if the "domains" parameter is present

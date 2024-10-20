@@ -9,6 +9,7 @@ import (
 type MultiScan struct {
 	ID             primitive.ObjectID `bson:"_id,omitempty"`
 	ScanIDs        []string           `bson:"scan_ids"`
+	Name           string             `bson:"name"`
 	TotalScans     int                `bson:"total_scans"`
 	CompletedScans int                `bson:"completed_scans"`
 	FailedScans    int                `bson:"failed_scans"`

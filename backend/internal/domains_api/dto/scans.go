@@ -1,8 +1,10 @@
 package dto
 
 type ScanDomainRequest struct {
-	DomainID    string   `schema:"domainId"`
+	DomainIDs   []string `schema:"domainIds"`
 	TemplateIDs []string `schema:"templateIds"`
+	ScanAll     bool     `schema:"scanAll"`
+	Name        string   `schema:"name"`
 }
 
 type ScheduleSingleScanRequest struct {
@@ -22,14 +24,13 @@ type ScheduleScanResponse struct {
 	ScheduledDate string   `json:"scheduledDate"`
 }
 
-
 type GetAllScansResponse struct {
-	ID          string    `json:"id"`
-	DomainID    string    `json:"domainId"`
-	Domain      string    `json:"domain"`
-	TemplateIDs []string  `json:"templateIds"`
-	ScanDate    string    `json:"scanDate"`
-	Status      string    `json:"status"`
-	Error       string    `json:"error,omitempty"`
-	S3ResultURL []string  `json:"s3ResultUrl,omitempty"`
+	ID          string   `json:"id"`
+	DomainID    string   `json:"domainId"`
+	Domain      string   `json:"domain"`
+	TemplateIDs []string `json:"templateIds"`
+	ScanDate    string   `json:"scanDate"`
+	Status      string   `json:"status"`
+	Error       string   `json:"error,omitempty"`
+	S3ResultURL []string `json:"s3ResultUrl,omitempty"`
 }

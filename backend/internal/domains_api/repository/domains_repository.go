@@ -43,6 +43,38 @@ func (r *DomainsRepository) GetAllDomains() ([]models.Domain, error) {
 	return domains, nil
 }
 
+// GetDomainsByIDs retrieves multiple domains by their IDs
+func (r *DomainsRepository) GetDomainsByIDs(ids []string) ([]models.Domain, error) {
+	collection := r.mongoClient.Database(r.mongoDbName).Collection(r.collectionName)
+
+	var objectIDs []primitive.ObjectID
+	for _, id := range ids {
+		objectID, err := primitive.ObjectIDFromHex(id)
+		if err != nil {
+			log.Error().Err(err).Str("id", id).Msg("Error converting domain ID to ObjectID")
+			return nil, err
+		}
+		objectIDs = append(objectIDs, objectID)
+	}
+
+	filter := bson.M{"_id": bson.M{"$in": objectIDs}}
+	cursor, err := collection.Find(context.Background(), filter)
+	if err != nil {
+		log.Error().Err(err).Msg("Error fetching domains from MongoDB")
+		return nil, err
+	}
+	defer cursor.Close(context.Background())
+
+	var domains []models.Domain
+	if err = cursor.All(context.Background(), &domains); err != nil {
+		log.Error().Err(err).Msg("Error decoding domains from MongoDB cursor")
+		return nil, err
+	}
+
+	return domains, nil
+}
+
+
 // GetDomainByID gets a domain by its ID and return the domain
 func (r *DomainsRepository) GetDomainByID(id string) (*models.Domain, error) {
 	collection := r.mongoClient.Database(r.mongoDbName).Collection(r.collectionName)

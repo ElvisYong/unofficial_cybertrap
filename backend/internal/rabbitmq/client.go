@@ -6,13 +6,16 @@ import (
 
 	"github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog/log"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // ScanMessage defines the structure of the message received from RabbitMQ
+// We just check the primitive.ObjectID at the API layer
 type ScanMessage struct {
-	ScanID      string   `json:"scan_id"`
-	TemplateIDs []string `json:"template_ids"`
-	DomainID    string   `json:"domain_id"`
+	MultiScanID primitive.ObjectID `json:"multi_scan_id"`
+	ScanID      primitive.ObjectID `json:"scan_id"`
+	TemplateIDs []string           `json:"template_ids"`
+	DomainID    primitive.ObjectID `json:"domain_id"`
 }
 
 type RabbitMQClient struct {
