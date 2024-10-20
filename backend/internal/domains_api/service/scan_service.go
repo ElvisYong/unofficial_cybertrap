@@ -16,6 +16,7 @@ import (
 type ScansService struct {
 	domainsRepo       *r.DomainsRepository
 	scansRepo         *r.ScansRepository
+	multiScanRepo     *r.MultiScanRepository
 	templatesRepo     *r.TemplatesRepository
 	scheduledScanRepo *r.ScheduledScanRepository
 	mqClient          *rabbitmq.RabbitMQClient
@@ -147,6 +148,17 @@ func (s *ScansService) ScanAllDomains() error {
 	// Create the MultiScanId and the scan ids for each domain and then send to rabbitmq
 	multiScanId := primitive.NewObjectID()
 
+	// Create a multi scan data with in-progress status
+	multiScanModel := models.MultiScan{
+		ID:             multiScanId,
+		ScanIDs:        make([]primitive.ObjectID, 0),
+		Name:           "Scheduled Scan",
+		TotalScans:     len(domainIds),
+		CompletedScans: make([]primitive.ObjectID, 0),
+		FailedScans:    make([]primitive.ObjectID, 0),
+		Status:         "in-progress",
+	}
+
 	for _, domain := range domainIds {
 		scanId := primitive.NewObjectID()
 
@@ -157,6 +169,8 @@ func (s *ScansService) ScanAllDomains() error {
 			TemplateIDs: templateIds,
 			Status:      "Pending",
 		}
+
+		multiScanModel.ScanIDs = append(multiScanModel.ScanIDs, scanId)
 
 		// Insert the scan into the database
 		errscan := s.scansRepo.InsertSingleScan(scanModel)
@@ -180,6 +194,13 @@ func (s *ScansService) ScanAllDomains() error {
 		}
 
 		log.Info().Str("scanId", scanId.Hex()).Str("domainId", domain.Id.Hex()).Msg("Scan created and sent to queue")
+	}
+
+	// Insert the multi scan into the database
+	err = s.multiScanRepo.CreateMultiScan(multiScanModel)
+	if err != nil {
+		log.Error().Err(err).Msg("Error inserting multi scan into the database")
+		return err
 	}
 
 	return nil

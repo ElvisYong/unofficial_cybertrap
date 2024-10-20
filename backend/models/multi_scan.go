@@ -8,7 +8,7 @@ import (
 
 type MultiScan struct {
 	ID             primitive.ObjectID   `bson:"_id,omitempty"`
-	ScanIDs        []string             `bson:"scan_ids"`
+	ScanIDs        []primitive.ObjectID `bson:"scan_ids"`
 	Name           string               `bson:"name"`
 	TotalScans     int                  `bson:"total_scans"`
 	CompletedScans []primitive.ObjectID `bson:"completed_scans"`

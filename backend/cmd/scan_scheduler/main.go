@@ -41,6 +41,7 @@ func main() {
 		log.Fatal().Err(err).Msg("failed to connect to MongoDB")
 	}
 	scansRepo := repository.NewScansRepository(mongoClient, appConfig.MongoDbName)
+	multiScanRepo := repository.NewMultiScanRepository(mongoClient, appConfig.MongoDbName)
 
 	// Setup rabbitmq client
 	mqClient, err := rabbitmq.NewRabbitMQClient(appConfig.RabbitMqUri)
@@ -49,7 +50,6 @@ func main() {
 	}
 
 	// Use mongo client to get all schedule scans for today
-
 	collection := mongoClient.Database(appConfig.MongoDbName).Collection("ScheduledScans")
 	// Get the current date (ignoring the time part)
 	today := time.Now()
@@ -62,7 +62,7 @@ func main() {
 		},
 	}
 
-	var results []models.ScheduleScan
+	var scheduleScans []models.ScheduleScan
 
 	cursor, err := collection.Find(context.Background(), filter)
 	if err != nil {
@@ -78,7 +78,7 @@ func main() {
 			return
 		}
 		// Append the result to the results array
-		results = append(results, result)
+		scheduleScans = append(scheduleScans, result)
 		fmt.Printf("Scan found: %+v\n", result)
 	}
 
@@ -88,42 +88,66 @@ func main() {
 	}
 
 	// Now you can work with the 'results' slice which contains all the decoded scans
-	fmt.Printf("All Scans: %+v\n", results)
+	fmt.Printf("All Scans: %+v\n", scheduleScans)
 
-	// create a scan id object
-	// Process each scan
-	scanArray := make([]models.Scan, 0)
-	for _, scan := range results {
-		scanModel := models.Scan{
-			ID:          primitive.NewObjectID(),
-			DomainID:    scan.DomainID,
-			TemplateIDs: scan.TemplatesIDs,
-			Status:      "pending",
+	for _, scheduleScan := range scheduleScans {
+		// Create a multi scan id
+		multiScanId := primitive.NewObjectID()
+
+		// Create a multi scan data with in-progress status
+		multiScanModel := models.MultiScan{
+			ID:             multiScanId,
+			ScanIDs:        make([]primitive.ObjectID, 0),
+			Name:           "Scheduled Scan",
+			TotalScans:     len(scheduleScan.DomainIds),
+			CompletedScans: make([]primitive.ObjectID, 0),
+			FailedScans:    make([]primitive.ObjectID, 0),
+			Status:         "in-progress",
 		}
 
-		scanArray = append(scanArray, scanModel)
-	}
-
-	errscan := scansRepo.InsertMultiScan(scanArray) // update scans to pending
-	if errscan != nil {
-		log.Error().Err(errscan).Msg("Error multi scan into the database")
-		return
-	}
-
-	for _, scan := range scanArray {
-
-		messageJson := rabbitmq.ScanMessage{
-			ScanId:      scan.ID.Hex(),
-			TemplateIds: scan.TemplateIDs,
-			DomainID:    scan.DomainID,
+		scanArray := make([]models.Scan, 0)
+		for _, domainId := range scheduleScan.DomainIds {
+			scanId := primitive.NewObjectID()
+			multiScanModel.ScanIDs = append(multiScanModel.ScanIDs, scanId)
+			scanModel := models.Scan{
+				ID:          scanId,
+				DomainId:    domainId,
+				TemplateIDs: scheduleScan.TemplatesIDs,
+				Status:      "pending",
+			}
+			scanArray = append(scanArray, scanModel)
 		}
 
-		// Send the message to the queue
-		err := mqClient.Publish(messageJson)
-		if err != nil {
-			log.Error().Err(err).Msg("Error sending scan message to queue")
-			return
+		errscan := scansRepo.BatchInsertScans(scanArray) // update scans to pending
+		if errscan != nil {
+			log.Error().Err(errscan).Msg("Error multi scan into the database")
+			continue
 		}
+
+		for _, scan := range scanArray {
+			messageJson := rabbitmq.ScanMessage{
+				MultiScanId:   multiScanId,
+				ScanId:        scan.ID,
+				TemplateIds:   scan.TemplateIDs,
+				DomainId:      scan.DomainId,
+				Domain:        scan.Domain,
+				ScanAllNuclei: scheduleScan.ScanAll,
+			}
+
+			// Send the message to the queue
+			err := mqClient.Publish(messageJson)
+			if err != nil {
+				log.Error().Err(err).Msg("Error sending scan message to queue")
+				return
+			}
+		}
+
+		errmultiScan := multiScanRepo.CreateMultiScan(multiScanModel)
+		if errmultiScan != nil {
+			log.Error().Err(errmultiScan).Msg("Error multi scan into the database")
+			continue
+		}
+
 	}
 
 	log.Log().Msg("Finished publishing to rabbitMQ")
