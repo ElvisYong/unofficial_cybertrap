@@ -21,6 +21,7 @@ const (
 	ScansCollection           = "scans"
 	DomainsCollection         = "domains"
 	NucleiTemplatesCollection = "nucleiTemplates"
+	MultiScansCollection      = "multiScans"
 )
 
 func NewMongoHelper(client *mongo.Client, database string) *MongoHelper {
@@ -118,4 +119,42 @@ func (r *MongoHelper) FindTemplateByID(ctx context.Context, templateID primitive
 	}
 
 	return template, nil
+}
+
+func (r *MongoHelper) UpdateMultiScanStatus(ctx context.Context, multiScanId primitive.ObjectID, status string, completedScanID, failedScanID *primitive.ObjectID) error {
+	collection := r.client.Database(r.database).Collection(MultiScansCollection)
+	filter := bson.M{"_id": multiScanId}
+	update := bson.M{
+		"$set": bson.M{
+			"status": status,
+		},
+	}
+
+	if completedScanID != nil {
+		update["$push"] = bson.M{"completed_scans": *completedScanID}
+	}
+
+	if failedScanID != nil {
+		update["$push"] = bson.M{"failed_scans": *failedScanID}
+	}
+
+	_, err := collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to update multi scan status")
+		return err
+	}
+
+	return nil
+}
+
+func (r *MongoHelper) FindMultiScanByID(ctx context.Context, multiScanId primitive.ObjectID) (models.MultiScan, error) {
+	collection := r.client.Database(r.database).Collection(MultiScansCollection)
+	var multiScan models.MultiScan
+	err := collection.FindOne(ctx, bson.M{"_id": multiScanId}).Decode(&multiScan)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to find multi scan by ID")
+		return multiScan, err
+	}
+
+	return multiScan, nil
 }

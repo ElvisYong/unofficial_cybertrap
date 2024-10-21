@@ -9,22 +9,22 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-type ScansRepository struct {
+type MultiScanRepository struct {
 	mongoClient    *mongo.Client
 	mongoDbName    string
 	collectionName string
 }
 
 // NewUserRepository creates a new instance of UserRepository
-func NewScansRepository(mongoClient *mongo.Client, mongoDbName string) *ScansRepository {
-	return &ScansRepository{
+func NewMultiScanRepository(mongoClient *mongo.Client, mongoDbName string) *MultiScanRepository {
+	return &MultiScanRepository{
 		mongoClient:    mongoClient,
 		mongoDbName:    mongoDbName,
-		collectionName: "scans",
+		collectionName: "multiScans",
 	}
 }
 
-func (r *ScansRepository) GetAllScans() ([]models.Scan, error) {
+func (r *MultiScanRepository) GetAllMultiScans() ([]models.MultiScan, error) {
 	collection := r.mongoClient.Database(r.mongoDbName).Collection(r.collectionName)
 	cursor, err := collection.Find(context.Background(), bson.M{})
 	if err != nil {
@@ -32,17 +32,17 @@ func (r *ScansRepository) GetAllScans() ([]models.Scan, error) {
 		return nil, err
 	}
 
-	var scans []models.Scan
+	var multiScans []models.MultiScan
 
-	if err = cursor.All(context.Background(), &scans); err != nil {
-		log.Error().Err(err).Msg("Error populating scans from MongoDB cursor")
+	if err = cursor.All(context.Background(), &multiScans); err != nil {
+		log.Error().Err(err).Msg("Error populating multi scans from MongoDB cursor")
 		return nil, err
 	}
 
-	return scans, nil
+	return multiScans, nil
 }
 
-func (r *ScansRepository) InsertSingleScan(scan models.Scan) error {
+func (r *MultiScanRepository) CreateMultiScan(scan models.MultiScan) error {
 	collection := r.mongoClient.Database(r.mongoDbName).Collection(r.collectionName)
 
 	_, err := collection.InsertOne(context.Background(), scan)
@@ -54,20 +54,4 @@ func (r *ScansRepository) InsertSingleScan(scan models.Scan) error {
 
 	return nil
 
-}
-
-func (r *ScansRepository) BatchInsertScans(scans []models.Scan) error {
-	collection := r.mongoClient.Database(r.mongoDbName).Collection("scans")
-	var documents []interface{}
-	for _, scan := range scans {
-		documents = append(documents, scan)
-	}
-
-	_, err := collection.InsertMany(context.Background(), documents)
-	if err != nil {
-		log.Error().Err(err).Msg("Error inserting domains into MongoDB")
-		return err
-	}
-
-	return nil
 }

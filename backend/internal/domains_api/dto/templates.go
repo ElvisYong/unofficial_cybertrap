@@ -4,7 +4,7 @@ type TemplateDeleteQuery struct {
 	Id string `schema:"id"`
 }
 
-type GetAllTemplatesResponse struct {
+type GetTemplatesResponse struct {
 	ID          string                 `json:"id"`
 	TemplateID  string                 `json:"templateId"`
 	Name        string                 `json:"name"`

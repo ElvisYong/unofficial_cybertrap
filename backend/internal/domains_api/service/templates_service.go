@@ -64,7 +64,7 @@ func (s *TemplatesService) UploadNucleiTemplate(file multipart.File, file_header
 }
 
 // TODO: GET endpoints for templates
-func (s *TemplatesService) GetAllTemplates() ([]dto.GetAllTemplatesResponse, error) {
+func (s *TemplatesService) GetAllTemplates() ([]dto.GetTemplatesResponse, error) {
 	templates, err := s.templatesRepo.GetAllTemplates()
 	if err != nil {
 		log.Error().Err(err).Msg("Error fetching templates from the database")
@@ -72,9 +72,9 @@ func (s *TemplatesService) GetAllTemplates() ([]dto.GetAllTemplatesResponse, err
 	}
 
 	// convert the templates to the dto.GetAllTemplatesResponse
-	var response []dto.GetAllTemplatesResponse
+	var response []dto.GetTemplatesResponse
 	for _, template := range templates {
-		response = append(response, dto.GetAllTemplatesResponse{
+		response = append(response, dto.GetTemplatesResponse{
 			ID:          template.ID.Hex(),
 			TemplateID:  template.TemplateID,
 			Name:        template.Name,

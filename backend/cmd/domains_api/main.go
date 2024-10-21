@@ -94,7 +94,7 @@ func main() {
 	// service DI
 	domainsService := s.NewDomainsService(domainsRepo)
 	templatesService := s.NewTemplatesService(templatesRepo)
-	scansService := s.NewScansService(scansRepo, domainsRepo, scheduledScanRepo, mqClient)
+	scansService := s.NewScansService(scansRepo, domainsRepo, templatesRepo, scheduledScanRepo, mqClient)
 
 	// HTTP handlers
 	handlers.NewDomainsHandler(router, *domainsService)
