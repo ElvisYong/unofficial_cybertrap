@@ -4,22 +4,19 @@ import {
   UserGroupIcon,
   CalendarDaysIcon,
   DocumentDuplicateIcon,
-  PresentationChartBarIcon
+  PresentationChartBarIcon,
+  ShieldExclamationIcon
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
 
 // Map of links to display in the side navigation.
-// Depending on the size of the application, this would be stored in a database.
 const links = [
   { name: 'Schedule Scan', href: '/dashboard', icon: CalendarDaysIcon },
-  {
-    name: 'Targets',
-    href: '/dashboard/targets',
-    icon: DocumentDuplicateIcon,
-  },
-  { name: 'Quick Scans', href: '/dashboard/scans', icon: UserGroupIcon },
+  { name: 'Targets', href: '/dashboard/targets', icon: DocumentDuplicateIcon},
+  { name: 'Overall Scans', href: '/dashboard/overall', icon: ShieldExclamationIcon},
+  { name: 'Scans', href: '/dashboard/scans', icon: UserGroupIcon },
   { name: 'Adversarial', href: '/dashboard/adversarial', icon: PresentationChartBarIcon}
 ];
 
