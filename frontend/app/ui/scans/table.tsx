@@ -2,7 +2,7 @@
 
 import { formatDateToLocal } from '@/app/lib/utils'
 import { useRouter } from 'next/navigation'
-import { InformationCircleIcon, BoltIcon } from '@heroicons/react/24/outline'
+import { InformationCircleIcon } from '@heroicons/react/24/outline'
 import { useState, useEffect } from 'react'
 import {
   Pagination,
@@ -17,6 +17,7 @@ import FilterByDropdown from '@/components/ui/filterDropdown'
 import SortButton from '@/components/ui/sortButton'
 import { BASE_URL } from '@/data'
 import { Domain, Scan } from '@/app/types'
+import { format } from 'date-fns'; // Import date-fns for formatting
 
 export default function ScanResultsTable() {
   const [scans, setScans] = useState<Scan[]>([])
@@ -52,8 +53,6 @@ export default function ScanResultsTable() {
         throw new Error('Failed to fetch scans')
       }
       const data = await response.json()
-      console.log(data)
-
       const sortedScans = data.sort((a: Scan, b: Scan) => 
         new Date(b.scanDate).getTime() - new Date(a.scanDate).getTime()
       )
@@ -69,7 +68,6 @@ export default function ScanResultsTable() {
     const endpoint = `${BASE_URL}/v1/domains`;
     try {
       const response = await fetch(endpoint);
-      // console.log(response.json())
       if (!response.ok) {
         throw new Error('Network response was not ok');
       }
@@ -97,50 +95,27 @@ export default function ScanResultsTable() {
   
   const applyFilters = (sortedScans: Scan[]) => {
     let filtered = sortedScans;
-    console.log("Initial scans:", filtered);
-  
+
     if (filters.domain && filters.domain.trim() !== '') {
       const lowercaseDomain = filters.domain.toLowerCase().trim();
-      filtered = filtered.filter(scan => {
-        const match = (scan.domain || '').toLowerCase().includes(lowercaseDomain);
-        console.log(`Domain filter: Scan domain "${scan.domain}" vs Filter "${lowercaseDomain}", match: ${match}`);
-        return match;
-      });
+      filtered = filtered.filter(scan => (scan.domain || '').toLowerCase().includes(lowercaseDomain));
     }
   
     if (filters.templateID && filters.templateID.trim() !== '') {
       const lowercaseTemplateID = filters.templateID.toLowerCase().trim();
-      filtered = filtered.filter(scan => {
-        const match = scan.templateIds.some(templateID => 
-          templateID.toLowerCase().includes(lowercaseTemplateID)
-        );
-        console.log(`Template ID filter: Scan templateIds [${scan.templateIds.join(', ')}] vs Filter "${lowercaseTemplateID}", match: ${match}`);
-        return match;
-      });
+      filtered = filtered.filter(scan => scan.templateIds.some(templateID => 
+        templateID.toLowerCase().includes(lowercaseTemplateID)
+      ));
     }
   
     if (filters.status && filters.status.trim() !== '') {
       const lowercaseStatus = filters.status.toLowerCase().trim();
-      filtered = filtered.filter(scan => {
-        const match = scan.status.toLowerCase().includes(lowercaseStatus);
-        console.log(`Status filter: Scan status "${scan.status}" vs Filter "${lowercaseStatus}", match: ${match}`);
-        return match;
-      });
-    }
-  
-    console.log("Filtered scans:", filtered);
-  
-    // Check if there are any matches
-    if (filtered.length === 0) {
-      console.log("No matches found after applying filters");
-    } else {
-      console.log(`Found ${filtered.length} matches after applying filters`);
+      filtered = filtered.filter(scan => scan.status.toLowerCase().includes(lowercaseStatus));
     }
   
     setFilteredScans(filtered);
     setCurrentPage(1);
   };
-  
 
   const handleFilter = (filterType: string, filterValue: string) => {
     setFilters(prevFilters => ({
@@ -189,6 +164,11 @@ export default function ScanResultsTable() {
     return domain ? domain.domain : 'Unknown Domain';
   };
 
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return format(date, 'Pp'); // Use date-fns for consistent formatting
+  };
+
   return (
     <div className="mt-6 flow-root">
       <div className="inline-block min-w-full align-middle">
@@ -222,48 +202,27 @@ export default function ScanResultsTable() {
           <table className="hidden min-w-full text-gray-900 md:table">
             <thead className="rounded-lg text-left text-sm font-normal">
               <tr>
-                <th scope="col" className="px-4 py-5 font-medium sm:pl-6">
-                Domain
-                </th>
-                <th scope="col" className="px-3 py-5 font-medium">
-                  Template IDs
-                </th>
+                <th scope="col" className="px-4 py-5 font-medium sm:pl-6">Domain</th>
+                <th scope="col" className="px-3 py-5 font-medium">Template IDs</th>
                 <th scope="col" className="px-3 py-5 font-medium">
                   <SortButton
-                    sortKey="ScanDate"
+                    sortKey="scanDate"
                     sortConfig={sortConfig}
                     onSort={handleSort}
                     label="Scan Date"
                   />
                 </th>
-                <th scope="col" className="px-3 py-5 font-medium">
-                  Status
-                </th>
-                <th scope="col" className="relative py-3 pl-6 pr-3">
-                  Action
-                </th>
+                <th scope="col" className="px-3 py-5 font-medium">Status</th>
+                <th scope="col" className="relative py-3 pl-6 pr-3">Action</th>
               </tr>
             </thead>
             <tbody className="bg-white">
               {paginatedScans.map((scan) => (
-                <tr
-                  key={scan.id}
-                  className="w-full border-b py-3 text-sm last-of-type:border-none [&:first-child>td:first-child]:rounded-tl-lg [&:first-child>td:last-child]:rounded-tr-lg [&:last-child>td:first-child]:rounded-bl-lg [&:last-child>td:last-child]:rounded-br-lg"
-                >
-                  <td className="whitespace-nowrap py-3 pl-6 pr-3">
-                    {scan.domain || getDomainNameById(scan.domainId)}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-3">
-                    {scan.templateIds.join(', ') || 'All Github Default Template'}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-3">
-                    {scan.status.toLowerCase() === 'completed' 
-                      ? formatDateToLocal(scan.scanDate)
-                      : 'N/A'}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-3">
-                    {getStatusBadge(scan.status)}
-                  </td>
+                <tr key={scan.id} className="w-full border-b py-3 text-sm last-of-type:border-none">
+                  <td className="whitespace-nowrap py-3 pl-6 pr-3">{scan.domain || getDomainNameById(scan.domainId)}</td>
+                  <td className="whitespace-nowrap px-3 py-3">{scan.templateIds.join(', ') || 'All Github Default Template'}</td>
+                  <td className="whitespace-nowrap px-3 py-3">{scan.status.toLowerCase() === 'completed' ? formatDate(scan.scanDate) : 'N/A'}</td>
+                  <td className="whitespace-nowrap px-3 py-3">{getStatusBadge(scan.status)}</td>
                   <td className="whitespace-nowrap py-3 pl-6 pr-3">
                     <div className="flex space-x-4">
                       <button
