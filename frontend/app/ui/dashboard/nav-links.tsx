@@ -4,6 +4,7 @@ import {
   UserGroupIcon,
   CalendarDaysIcon,
   DocumentDuplicateIcon,
+  PresentationChartBarIcon
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -19,6 +20,7 @@ const links = [
     icon: DocumentDuplicateIcon,
   },
   { name: 'Quick Scans', href: '/dashboard/scans', icon: UserGroupIcon },
+  { name: 'Adversarial', href: '/dashboard/adversarial', icon: PresentationChartBarIcon}
 ];
 
 export default function NavLinks() {
