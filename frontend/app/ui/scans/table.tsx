@@ -96,30 +96,51 @@ export default function ScanResultsTable() {
   }
   
   const applyFilters = (sortedScans: Scan[]) => {
-    let filtered = sortedScans
-    if (filters.domain) {
-      filtered = filtered.filter(scan =>
-        scan.domain.toLowerCase().includes(filters.domain.toLowerCase())
-      )
+    let filtered = sortedScans;
+    console.log("Initial scans:", filtered);
+  
+    if (filters.domain && filters.domain.trim() !== '') {
+      const lowercaseDomain = filters.domain.toLowerCase().trim();
+      filtered = filtered.filter(scan => {
+        const match = (scan.domain || '').toLowerCase().includes(lowercaseDomain);
+        console.log(`Domain filter: Scan domain "${scan.domain}" vs Filter "${lowercaseDomain}", match: ${match}`);
+        return match;
+      });
     }
-
-    if (filters.templateID) {
-      filtered = filtered.filter(scan =>
-        scan.templateIds.some(templateID =>
-          templateID.toLowerCase().includes(filters.templateID.toLowerCase())
-        )
-      )
+  
+    if (filters.templateID && filters.templateID.trim() !== '') {
+      const lowercaseTemplateID = filters.templateID.toLowerCase().trim();
+      filtered = filtered.filter(scan => {
+        const match = scan.templateIds.some(templateID => 
+          templateID.toLowerCase().includes(lowercaseTemplateID)
+        );
+        console.log(`Template ID filter: Scan templateIds [${scan.templateIds.join(', ')}] vs Filter "${lowercaseTemplateID}", match: ${match}`);
+        return match;
+      });
     }
-
-    if (filters.status) {
-      filtered = filtered.filter(scan =>
-        scan.status.toLowerCase().includes(filters.status.toLowerCase())
-      )
+  
+    if (filters.status && filters.status.trim() !== '') {
+      const lowercaseStatus = filters.status.toLowerCase().trim();
+      filtered = filtered.filter(scan => {
+        const match = scan.status.toLowerCase().includes(lowercaseStatus);
+        console.log(`Status filter: Scan status "${scan.status}" vs Filter "${lowercaseStatus}", match: ${match}`);
+        return match;
+      });
     }
-
-    setFilteredScans(filtered)
-    setCurrentPage(1) 
-  }
+  
+    console.log("Filtered scans:", filtered);
+  
+    // Check if there are any matches
+    if (filtered.length === 0) {
+      console.log("No matches found after applying filters");
+    } else {
+      console.log(`Found ${filtered.length} matches after applying filters`);
+    }
+  
+    setFilteredScans(filtered);
+    setCurrentPage(1);
+  };
+  
 
   const handleFilter = (filterType: string, filterValue: string) => {
     setFilters(prevFilters => ({
