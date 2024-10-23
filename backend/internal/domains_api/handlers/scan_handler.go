@@ -25,6 +25,7 @@ func NewScansHandler(r *chi.Mux, service s.ScansService) {
 	r.Route("/v1/scans", func(r chi.Router) {
 		r.Get("/", handler.GetAllScans)
 		r.Post("/", handler.ScanDomains)
+		r.Post("/all", handler.ScanAllDomains)
 		r.Get("/schedule", handler.GetAllScheduledScans)
 		r.Post("/schedule", handler.ScheduleScan)
 		r.Delete("/schedule", handler.DeleteScheduledScanRequest)
@@ -42,6 +43,16 @@ func (h *ScansHandler) GetAllScans(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	// Encode domains and write to response
 	json.NewEncoder(w).Encode(scans)
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *ScansHandler) ScanAllDomains(w http.ResponseWriter, r *http.Request) {
+	err := h.ScansService.ScanAllDomains()
+	if err != nil {
+		http.Error(w, "Failed to scan all domains", http.StatusInternalServerError)
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
 }
 

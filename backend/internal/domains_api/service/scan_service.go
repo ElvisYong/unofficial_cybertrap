@@ -23,10 +23,11 @@ type ScansService struct {
 }
 
 // NewUserUseCase creates a new instance of userUseCase
-func NewScansService(repository *r.ScansRepository, domainsRepo *r.DomainsRepository, templatesRepo *r.TemplatesRepository, scheduledScanRepo *r.ScheduledScanRepository, mqClient *rabbitmq.RabbitMQClient) *ScansService {
+func NewScansService(repository *r.ScansRepository, domainsRepo *r.DomainsRepository, multiScanRepo *r.MultiScanRepository, templatesRepo *r.TemplatesRepository, scheduledScanRepo *r.ScheduledScanRepository, mqClient *rabbitmq.RabbitMQClient) *ScansService {
 	return &ScansService{
 		scansRepo:         repository,
 		domainsRepo:       domainsRepo,
+		multiScanRepo:     multiScanRepo,
 		templatesRepo:     templatesRepo,
 		scheduledScanRepo: scheduledScanRepo,
 		mqClient:          mqClient,
