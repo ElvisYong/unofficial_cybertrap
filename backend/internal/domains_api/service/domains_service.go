@@ -37,10 +37,10 @@ func (s *DomainsService) GetAllDomains() ([]dto.GetDomainResponse, error) {
 
 	for _, domain := range domains {
 		domainsResponse = append(domainsResponse, dto.GetDomainResponse{
-			ID:         domain.ID.Hex(),
+			ID:         domain.Id.Hex(),
 			Domain:     domain.Domain,
 			UploadedAt: domain.UploadedAt.Format(time.RFC3339),
-			UserID:     domain.UserID,
+			UserID:     domain.UserId,
 		})
 	}
 
@@ -55,10 +55,10 @@ func (s *DomainsService) GetDomainById(id string) (*dto.GetDomainResponse, error
 	}
 
 	domainResponse := dto.GetDomainResponse{
-		ID:         domain.ID.Hex(),
+		ID:         domain.Id.Hex(),
 		Domain:     domain.Domain,
 		UploadedAt: domain.UploadedAt.Format(time.RFC3339),
-		UserID:     domain.UserID,
+		UserID:     domain.UserId,
 	}
 
 	return &domainResponse, nil
@@ -89,10 +89,10 @@ func (s *DomainsService) ProcessDomainsFile(file multipart.File, file_header *mu
 		domain := strings.TrimSpace(scanner.Text())
 		if domain != "" {
 			domains = append(domains, models.Domain{
-				ID:         primitive.NewObjectID(),
+				Id:         primitive.NewObjectID(),
 				Domain:     domain,
 				UploadedAt: time.Now(),
-				UserID:     "temp_user", // For now we will hardcode the user_id as temp_user until auth is done
+				UserId:     "temp_user", // For now we will hardcode the user_id as temp_user until auth is done
 			})
 		}
 	}
@@ -115,10 +115,10 @@ func (s *DomainsService) ProcessDomainsFile(file multipart.File, file_header *mu
 func (s *DomainsService) ProcessDomains(domainQuery string) error {
 
 	domainModel := models.Domain{
-		ID:         primitive.NewObjectID(),
+		Id:         primitive.NewObjectID(),
 		Domain:     domainQuery,
 		UploadedAt: time.Now(),
-		UserID:     "temp_user", // For now we will hardcode the user_id as temp_user until auth is done
+		UserId:     "temp_user", // For now we will hardcode the user_id as temp_user until auth is done
 	}
 
 	// Insert the domains into the database

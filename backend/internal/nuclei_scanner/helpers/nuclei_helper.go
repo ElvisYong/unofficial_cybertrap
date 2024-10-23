@@ -27,23 +27,39 @@ func NewNucleiHelper(s3Helper *S3Helper, mongoHelper *MongoHelper) *NucleiHelper
 	}
 }
 
-func (nh *NucleiHelper) ScanWithNuclei(scanID primitive.ObjectID, domain string, domainID string, templateFiles []string, debug bool) {
+func (nh *NucleiHelper) ScanWithNuclei(
+	multiScanId primitive.ObjectID,
+	scanID primitive.ObjectID,
+	domain string,
+	domainId primitive.ObjectID,
+	templateFilePaths []string,
+	templateIDs []primitive.ObjectID,
+	scanAllNuclei bool,
+	debug bool,
+) {
 	// Check the length of templateFiles
 	templateSources := nuclei.TemplateSources{
-		Templates: templateFiles,
+		Templates: templateFilePaths,
 	}
 
-	ne, err := nuclei.NewNucleiEngineCtx(
-		context.TODO(),
+	var ne *nuclei.NucleiEngine
+	var err error
+
+	options := []nuclei.NucleiSDKOptions{
 		nuclei.WithNetworkConfig(nuclei.NetworkConfig{
 			DisableMaxHostErr: true,  // This probably doesn't work from what I can see
 			MaxHostError:      10000, // Using a larger number to avoid host errors dying in 30 tries dropping the domain
 		}),
 		nuclei.WithTemplatesOrWorkflows(templateSources),
-		nuclei.WithTemplateUpdateCallback(true, func(newVersion string) {
+	}
+
+	if scanAllNuclei {
+		options = append(options, nuclei.WithTemplateUpdateCallback(true, func(newVersion string) {
 			log.Info().Msgf("New template version available: %s", newVersion)
-		}),
-	)
+		}))
+	}
+
+	ne, err = nuclei.NewNucleiEngineCtx(context.TODO(), options...)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to execute scan")
 		// Update scan status to "failed"
@@ -66,6 +82,7 @@ func (nh *NucleiHelper) ScanWithNuclei(scanID primitive.ObjectID, domain string,
 		log.Error().Err(err).Msg("Failed to load templates")
 		// Update scan status to "failed"
 		nh.mongoHelper.UpdateScanStatus(context.Background(), scanID, "failed")
+		nh.mongoHelper.UpdateMultiScanStatus(context.Background(), multiScanId, "failed", nil, &scanID)
 		return
 	}
 
@@ -84,6 +101,7 @@ func (nh *NucleiHelper) ScanWithNuclei(scanID primitive.ObjectID, domain string,
 		log.Error().Err(err).Msg("Failed to execute scan")
 		// Update scan status to "failed"
 		nh.mongoHelper.UpdateScanStatus(context.Background(), scanID, "failed")
+		nh.mongoHelper.UpdateMultiScanStatus(context.Background(), multiScanId, "failed", &scanID, nil)
 		return
 	}
 	log.Info().Msg("Scan completed")
@@ -140,9 +158,9 @@ func (nh *NucleiHelper) ScanWithNuclei(scanID primitive.ObjectID, domain string,
 	// Update the scan result with the s3 url
 	scan := models.Scan{
 		ID:          scanID,
-		DomainID:    domainID,
+		DomainId:    domainId,
 		Domain:      domain,
-		TemplateIDs: templateFiles,
+		TemplateIDs: templateIDs,
 		Error:       nil,
 		S3ResultURL: scanResultUrls,
 		ScanDate:    time.Now(),
@@ -154,6 +172,29 @@ func (nh *NucleiHelper) ScanWithNuclei(scanID primitive.ObjectID, domain string,
 		log.Error().Err(err).Msg("Failed to update scan result")
 		nh.mongoHelper.UpdateScanStatus(context.Background(), scanID, "failed")
 		return
+	}
+
+	// First, update the completed scans for this multi-scan
+	err = nh.mongoHelper.UpdateMultiScanStatus(context.Background(), multiScanId, "", &scanID, nil)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to update multi scan status")
+		return
+	}
+
+	// Then, fetch the updated multi-scan to check if all scans are completed
+	multiScan, err := nh.mongoHelper.FindMultiScanByID(context.Background(), multiScanId)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to fetch multi scan")
+		return
+	}
+
+	if len(multiScan.CompletedScans) == multiScan.TotalScans {
+		// All scans are completed, update the status to "completed"
+		err = nh.mongoHelper.UpdateMultiScanStatus(context.Background(), multiScanId, "completed", nil, nil)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to update multi scan status to completed")
+			return
+		}
 	}
 
 	log.Info().Msg("Completed scan and updated scan result for scanID: " + scanID.Hex())

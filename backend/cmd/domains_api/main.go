@@ -90,11 +90,12 @@ func main() {
 	templatesRepo := r.NewTemplatesRepository(s3Client, appConfig.TemplateBucketName, mongoClient, appConfig.MongoDbName)
 	scansRepo := r.NewScansRepository(mongoClient, appConfig.MongoDbName)
 	scheduledScanRepo := r.NewScheduledScanRepository(mongoClient, appConfig.MongoDbName)
+	multiScanRepo := r.NewMultiScanRepository(mongoClient, appConfig.MongoDbName)
 
 	// service DI
 	domainsService := s.NewDomainsService(domainsRepo)
 	templatesService := s.NewTemplatesService(templatesRepo)
-	scansService := s.NewScansService(scansRepo, domainsRepo, scheduledScanRepo, mqClient)
+	scansService := s.NewScansService(scansRepo, domainsRepo, multiScanRepo, templatesRepo, scheduledScanRepo, mqClient)
 
 	// HTTP handlers
 	handlers.NewDomainsHandler(router, *domainsService)
