@@ -13,9 +13,10 @@ export default function DomainSearch({ domains, selectedDomain, onDomainSelect }
   const [searchTerm, setSearchTerm] = useState<string>('');
 
   // Filter domains based on the search term
-  const filteredDomains = domains.filter(domain =>
+  const filteredDomains = domains ? domains.filter(domain =>
     domain.domain.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  ): [];
+
 
   return (
     <Popover>

@@ -16,9 +16,9 @@ export default function TemplateSearch({ templates, selectedTemplates, onTemplat
   const [allSelected, setAllSelected] = useState<boolean>(false);
 
   // Filter templates based on the search term
-  const filteredTemplates = templates.filter(template =>
-    template.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredTemplates = templates
+  ? templates.filter(template => template.name.toLowerCase().includes(searchTerm.toLowerCase()))
+  : [];
 
   const isSelected = (template: Template) => selectedTemplates.some(t => t.id === template.id);
   
