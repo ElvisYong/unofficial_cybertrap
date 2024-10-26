@@ -9,12 +9,10 @@ import (
 	"path/filepath"
 	"sync"
 	"syscall"
-	"time"
 
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	nuclei "github.com/projectdiscovery/nuclei/v3/lib"
-	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	appConfig "github.com/shannevie/unofficial_cybertrap/backend/configs"
@@ -81,121 +79,79 @@ func main() {
 	templateDir := filepath.Join(os.TempDir(), "nuclei-templates")
 	nuclei.DefaultConfig.TemplatesDirectory = templateDir
 
-	// Set the maximum number of concurrent scans
-	maxConcurrentScans := config.MaxConcurrentScans
-	semaphore := make(chan struct{}, maxConcurrentScans)
+	// Process a single message from RabbitMQ
+	log.Info().Msg("Starting to process a message from RabbitMQ")
 
-	// Process messages from RabbitMQ
-	log.Info().Msg("Starting to process messages from RabbitMQ")
-	for {
-		select {
-		case <-signalChan:
-			log.Info().Msg("Received shutdown signal. Cleaning up...")
-			close(semaphore)
-			for i := 0; i < maxConcurrentScans; i++ {
-				semaphore <- struct{}{}
-			}
-			return
-		default:
-			semaphore <- struct{}{} // Acquire a slot
-
-			msg, ok, err := rabbitClient.Get()
-			if err != nil {
-				log.Error().Err(err).Msg("Failed to get message from RabbitMQ")
-				<-semaphore // Release the slot
-				continue
-			}
-			if !ok {
-				log.Debug().Msg("No message available, waiting...")
-				<-semaphore                 // Release the slot
-				time.Sleep(1 * time.Second) // Wait before trying again
-				continue
-			}
-
-			go func(msg *amqp.Delivery) {
-				defer func() { <-semaphore }() // Release the slot once the goroutine is finished
-
-				msg.Ack(false)
-
-				var scanMsg rabbitmq.ScanMessage
-				if err := json.Unmarshal(msg.Body, &scanMsg); err != nil {
-					log.Error().Err(err).Msg("Failed to unmarshal message")
-					return
-				}
-
-				log.Info().Msgf("Processing message: %s", msg.Body)
-
-				nh := helpers.NewNucleiHelper(s3Helper, mongoHelper)
-
-				// Update scan status to "in-progress"
-				log.Info().Msgf("Updating scan status to in-progress")
-				err = mongoHelper.UpdateScanStatus(context.Background(), scanMsg.ScanId, "in-progress")
-				if err != nil {
-					log.Error().Err(err).Msg("Failed to update scan status")
-					return
-				}
-
-				// Concurrently download the templates
-				// Fetch template and domain from MongoDB
-				var wg sync.WaitGroup
-
-				templateFilePaths := make([]string, 0, len(scanMsg.TemplateIds))
-				errChan := make(chan error, len(scanMsg.TemplateIds))
-
-				log.Info().Msgf("Downloading templates")
-				for _, templateId := range scanMsg.TemplateIds {
-					wg.Add(1)
-					go func(templateId primitive.ObjectID) {
-						defer wg.Done()
-
-						template, err := mongoHelper.FindTemplateByID(context.Background(), templateId)
-						if err != nil {
-							errChan <- fmt.Errorf("failed to find template by ID: %s, error: %w", templateId.Hex(), err)
-							return
-						}
-
-						templateFilePath := filepath.Join(templateDir, fmt.Sprintf("template-%s.yaml", templateId.Hex()))
-
-						log.Info().Msgf("Downloading template %s to %s", template.S3URL, templateFilePath)
-
-						err = s3Helper.DownloadFileFromURL(template.S3URL, templateFilePath)
-						if err != nil {
-							errChan <- fmt.Errorf("failed to download template file from S3 for ID: %s, error: %w", templateId.Hex(), err)
-							return
-						}
-
-						templateFilePaths = append(templateFilePaths, templateFilePath)
-					}(templateId)
-				}
-
-				wg.Wait()
-				close(errChan)
-
-				for err := range errChan {
-					log.Error().Err(err).Msg("Error occurred during template processing")
-
-					if err != nil {
-						log.Error().Err(err).Msg("Failed to download template file from S3")
-						// TODO: Log the error into the logs db
-						return
-					}
-				}
-
-				// Ensure all downloaded files are deleted after scan
-				defer func() {
-					for _, file := range templateFilePaths {
-						// Don't delete TemplatesDirectory
-						if file == nuclei.DefaultConfig.TemplatesDirectory {
-							continue
-						}
-						os.Remove(file)
-					}
-				}()
-
-				log.Info().Msg("Successfully downloaded templates")
-
-				nh.ScanWithNuclei(scanMsg.MultiScanId, scanMsg.ScanId, scanMsg.Domain, scanMsg.DomainId, templateFilePaths, scanMsg.TemplateIds, scanMsg.ScanAllNuclei, config.Debug)
-			}(msg)
-		}
+	msg, ok, err := rabbitClient.Get()
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to get message from RabbitMQ")
 	}
+	if !ok {
+		log.Info().Msg("No message available, exiting")
+		return
+	}
+
+	msg.Ack(false)
+
+	var scanMsg rabbitmq.ScanMessage
+	if err := json.Unmarshal(msg.Body, &scanMsg); err != nil {
+		log.Fatal().Err(err).Msg("Failed to unmarshal message")
+	}
+
+	log.Info().Msgf("Processing message: %s", msg.Body)
+
+	nh := helpers.NewNucleiHelper(s3Helper, mongoHelper)
+
+	// Update scan status to "in-progress"
+	log.Info().Msgf("Updating scan status to in-progress")
+	err = mongoHelper.UpdateScanStatus(context.Background(), scanMsg.ScanId, "in-progress")
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to update scan status")
+	}
+
+	// Download the templates
+	var wg sync.WaitGroup
+	templateFilePaths := make([]string, 0, len(scanMsg.TemplateIds))
+	errChan := make(chan error, len(scanMsg.TemplateIds))
+
+	log.Info().Msgf("Downloading templates")
+	for _, templateId := range scanMsg.TemplateIds {
+		wg.Add(1)
+		go func(templateId primitive.ObjectID) {
+			defer wg.Done()
+
+			template, err := mongoHelper.FindTemplateByID(context.Background(), templateId)
+			if err != nil {
+				errChan <- fmt.Errorf("failed to find template by ID: %s, error: %w", templateId.Hex(), err)
+				return
+			}
+
+			templateFilePath := filepath.Join(templateDir, fmt.Sprintf("template-%s.yaml", templateId.Hex()))
+
+			log.Info().Msgf("Downloading template %s to %s", template.S3URL, templateFilePath)
+
+			err = s3Helper.DownloadFileFromURL(template.S3URL, templateFilePath)
+			if err != nil {
+				errChan <- fmt.Errorf("failed to download template file from S3 for ID: %s, error: %w", templateId.Hex(), err)
+				return
+			}
+
+			templateFilePaths = append(templateFilePaths, templateFilePath)
+		}(templateId)
+	}
+
+	wg.Wait()
+	close(errChan)
+
+	for err := range errChan {
+		log.Error().Err(err).Msg("Error occurred during template processing")
+		// TODO: Log the error into the logs db
+	}
+
+	log.Info().Msg("Successfully downloaded templates")
+
+	nh.ScanWithNuclei(scanMsg.MultiScanId, scanMsg.ScanId, scanMsg.Domain, scanMsg.DomainId, templateFilePaths, scanMsg.TemplateIds, scanMsg.ScanAllNuclei, config.Debug)
+
+	// Finish the job by updating the scan status to "completed"
+	log.Info().Msgf("Finished processing")
 }
