@@ -86,6 +86,8 @@ kubectl get pods
 ```
 
 ## K8s
+To access the cluster add IAM access entries to a user and attach an access policy accordingly.
+
 Apply in the following order:
 1. asg
 2. nodes
