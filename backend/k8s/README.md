@@ -87,6 +87,7 @@ kubectl get pods
 
 ## K8s
 To access the cluster add IAM access entries to a user and attach an access policy accordingly.
+Refer to: https://docs.aws.amazon.com/eks/latest/userguide/grant-k8s-access.html 
 
 Apply in the following order:
 1. asg
