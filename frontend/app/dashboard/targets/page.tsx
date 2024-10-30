@@ -58,8 +58,7 @@ export default function Targets() : JSX.Element {
     const domainNames = domains.map(domain => domain.domain);
     
     try {
-      // testing with mock api, to update the url
-      const response = await fetch(`${BASE_URL}/v1/scan/all`, {
+      const response = await fetch(`${BASE_URL}/v1/scans/all`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

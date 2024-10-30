@@ -1,3 +1,5 @@
+'use client'
+
 import { useState, useRef } from 'react';
 import {
   Dialog,
@@ -15,7 +17,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { useToast } from "@/hooks/use-toast";
 import { BASE_URL } from '@/data';
 
-export default function TargetModal({ isOpen, onClose, onTargetAdded }: { isOpen: boolean; onClose: () => void; onTargetAdded: () => void }) {
+export default function Component({ isOpen = false, onClose = () => {}, onTargetAdded = () => {} }) {
   const [targetName, setTargetName] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const { toast } = useToast();
@@ -45,10 +47,7 @@ export default function TargetModal({ isOpen, onClose, onTargetAdded }: { isOpen
       }
 
       if (file) {
-        const domains = await readFileContent(file);
-        for (const domain of domains) {
-          await createDomain(domain);
-        }
+        await uploadFile(file);
       }
 
       onTargetAdded(); // Notify parent component of the new target(s)
@@ -72,22 +71,23 @@ export default function TargetModal({ isOpen, onClose, onTargetAdded }: { isOpen
       method: 'POST',
     });
 
-    if (response.status !== 201) {
+    if (!response.ok) {
       throw new Error(`Failed to create domain: ${domain}`);
     }
   };
 
-  const readFileContent = (file: File): Promise<string[]> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const content = event.target?.result as string;
-        const domains = content.split('\n').map(line => line.trim()).filter(line => line);
-        resolve(domains);
-      };
-      reader.onerror = (error) => reject(error);
-      reader.readAsText(file);
+  const uploadFile = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${BASE_URL}/v1/domains/upload-txt`, {
+      method: 'POST',
+      body: formData,
     });
+
+    if (!response.ok) {
+      throw new Error('Failed to upload file');
+    }
   };
 
   return (

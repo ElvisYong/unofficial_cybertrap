@@ -30,6 +30,7 @@ export default function SelectScan() {
     const [templates, setTemplates] = useState<Template[]>([]);
     const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
     const [scanAllTemplates, setScanAllTemplates] = useState(false);
+    const [scanAllNuclei, setScanAllNuclei] = useState(true);
     const [target, setTarget] = useState("");
     const [scanName, setScanName] = useState("");
     const router = useRouter();
@@ -113,29 +114,51 @@ export default function SelectScan() {
         // console.log('name', domainName)
     
         try {
+            const requestBody = {
+                domainId: domainIdScanAll,
+                templateIds,
+                scanAllNuclei,
+                scanName,
+            };
+        
+            console.log('Request Body:', JSON.stringify(requestBody, null, 2));
+        
             const response = await fetch(`${BASE_URL}/v1/scans`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    domainId: domainIdScanAll,
-                    templateIds,
-                    scanName,
-                }),
+                body: JSON.stringify(requestBody),
             });
-    
+        
+            console.log('Response Status:', response.status);
+            
+            let responseData;
+        
+            // Check if response is ok and has a body
             if (response.ok) {
+                const contentType = response.headers.get('Content-Type');
+                if (contentType && contentType.includes('application/json')) {
+                    responseData = await response.json();
+                } else {
+                    responseData = {}; // Handle the case where there's no JSON
+                }
+        
+                console.log('Response Data:', responseData);
+                
                 toast({
                     title: "Success",
                     description: "Scan initiated successfully.",
                 });
-                // Add a delay before redirecting
+        
                 setTimeout(() => {
                     router.push("/dashboard/scans");
                 }, 2000); // 2 second delay
             } else {
-                throw new Error('Failed to initiate scan');
+                // If response is not ok, attempt to read the error message
+                const errorText = await response.text(); // Use text() to get the raw response
+                const errorMessage = errorText ? errorText : 'Failed to initiate scan';
+                throw new Error(errorMessage);
             }
         } catch (error) {
             console.error('Error initiating scan:', error);
@@ -145,6 +168,8 @@ export default function SelectScan() {
                 variant: "destructive",
             });
         }
+        
+        
     };    
 
     return (
@@ -180,7 +205,7 @@ export default function SelectScan() {
                         ))} */}
                         <div className="flex items-center space-x-3">
                             <Checkbox
-                                id="scanAllTemplates"
+                                id="Templates"
                                 checked={scanAllTemplates}
                                 onCheckedChange={setScanAllTemplates}
                             />
