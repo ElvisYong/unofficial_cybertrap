@@ -23,6 +23,8 @@ import (
 	"github.com/go-chi/cors"
 	appConfig "github.com/shannevie/unofficial_cybertrap/backend/configs"
 	"github.com/shannevie/unofficial_cybertrap/backend/internal/domains_api/handlers"
+	"github.com/shannevie/unofficial_cybertrap/backend/internal/domains_api/jwk"
+	domainMiddleware "github.com/shannevie/unofficial_cybertrap/backend/internal/domains_api/middleware"
 	r "github.com/shannevie/unofficial_cybertrap/backend/internal/domains_api/repository"
 	s "github.com/shannevie/unofficial_cybertrap/backend/internal/domains_api/service"
 	"github.com/shannevie/unofficial_cybertrap/backend/internal/rabbitmq"
@@ -101,6 +103,34 @@ func main() {
 	handlers.NewDomainsHandler(router, *domainsService)
 	handlers.NewTemplatesHandler(router, *templatesService)
 	handlers.NewScansHandler(router, *scansService)
+
+	// Initialize Cognito JWK
+	cognitoJWK, err := jwk.NewCognitoJWK(
+		appConfig.CognitoRegion,
+		appConfig.CognitoUserPoolID,
+		appConfig.CognitoClientID,
+	)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to initialize Cognito JWK")
+	}
+	defer cognitoJWK.Stop() // Clean up when the application exits
+
+	// Initialize Cognito middleware
+	cognitoMiddleware := domainMiddleware.NewCognitoMiddleware(cognitoJWK)
+
+	// Public routes (if any)
+	// router.Group(func(r chi.Router) {
+	// 	r.Get("/health", handlers.HealthCheck) // Add if you have health check
+	// })
+
+	// Protected routes
+	router.Group(func(router chi.Router) {
+		router.Use(cognitoMiddleware.Verify())
+		// Your existing handlers
+		handlers.NewDomainsHandler(router.(*chi.Mux), *domainsService)
+		handlers.NewTemplatesHandler(router.(*chi.Mux), *templatesService)
+		handlers.NewScansHandler(router.(*chi.Mux), *scansService)
+	})
 
 	// Start the server
 	server := &http.Server{
