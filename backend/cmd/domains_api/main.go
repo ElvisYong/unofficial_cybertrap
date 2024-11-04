@@ -87,23 +87,6 @@ func main() {
 	router.Use(middleware.RealIP)
 	router.Use(middleware.Recoverer)
 
-	// repositories DI
-	domainsRepo := r.NewDomainsRepository(mongoClient, appConfig.MongoDbName)
-	templatesRepo := r.NewTemplatesRepository(s3Client, appConfig.TemplateBucketName, mongoClient, appConfig.MongoDbName)
-	scansRepo := r.NewScansRepository(mongoClient, appConfig.MongoDbName)
-	scheduledScanRepo := r.NewScheduledScanRepository(mongoClient, appConfig.MongoDbName)
-	multiScanRepo := r.NewMultiScanRepository(mongoClient, appConfig.MongoDbName)
-
-	// service DI
-	domainsService := s.NewDomainsService(domainsRepo)
-	templatesService := s.NewTemplatesService(templatesRepo)
-	scansService := s.NewScansService(scansRepo, domainsRepo, multiScanRepo, templatesRepo, scheduledScanRepo, mqClient)
-
-	// HTTP handlers
-	handlers.NewDomainsHandler(router, *domainsService)
-	handlers.NewTemplatesHandler(router, *templatesService)
-	handlers.NewScansHandler(router, *scansService)
-
 	// Initialize Cognito JWK
 	cognitoJWK, err := jwk.NewCognitoJWK(
 		appConfig.CognitoRegion,
@@ -117,6 +100,18 @@ func main() {
 
 	// Initialize Cognito middleware
 	cognitoMiddleware := domainMiddleware.NewCognitoMiddleware(cognitoJWK)
+
+	// repositories DI
+	domainsRepo := r.NewDomainsRepository(mongoClient, appConfig.MongoDbName)
+	templatesRepo := r.NewTemplatesRepository(s3Client, appConfig.TemplateBucketName, mongoClient, appConfig.MongoDbName)
+	scansRepo := r.NewScansRepository(mongoClient, appConfig.MongoDbName)
+	scheduledScanRepo := r.NewScheduledScanRepository(mongoClient, appConfig.MongoDbName)
+	multiScanRepo := r.NewMultiScanRepository(mongoClient, appConfig.MongoDbName)
+
+	// service DI
+	domainsService := s.NewDomainsService(domainsRepo)
+	templatesService := s.NewTemplatesService(templatesRepo)
+	scansService := s.NewScansService(scansRepo, domainsRepo, multiScanRepo, templatesRepo, scheduledScanRepo, mqClient)
 
 	// Public routes (if any)
 	// router.Group(func(r chi.Router) {

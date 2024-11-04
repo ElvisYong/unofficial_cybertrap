@@ -30,34 +30,15 @@ func NewCognitoJWK(region, poolID, clientID string) (*CognitoJWK, error) {
 		stopChan: make(chan struct{}),
 	}
 
-	// Initial load from file
-	if err := c.loadFromFile(); err != nil {
-		return nil, err
+	// Initial fetch from Cognito
+	if err := c.refreshKeys(); err != nil {
+		return nil, fmt.Errorf("initial JWKS fetch failed: %w", err)
 	}
 
 	// Start the periodic refresh
 	go c.startPeriodicRefresh()
 
 	return c, nil
-}
-
-func (c *CognitoJWK) loadFromFile() error {
-	jwksPath := filepath.Join("internal", "domains_api", "jwk", "jwks.json")
-	jwksBytes, err := os.ReadFile(jwksPath)
-	if err != nil {
-		return fmt.Errorf("failed to read JWKS file: %w", err)
-	}
-
-	keySet, err := jwk.Parse(jwksBytes)
-	if err != nil {
-		return fmt.Errorf("failed to parse JWKS: %w", err)
-	}
-
-	c.updateLock.Lock()
-	c.keySet = keySet
-	c.updateLock.Unlock()
-
-	return nil
 }
 
 func (c *CognitoJWK) refreshKeys() error {
@@ -86,7 +67,13 @@ func (c *CognitoJWK) refreshKeys() error {
 		return fmt.Errorf("failed to marshal JWKS: %w", err)
 	}
 
+	// Create directory if it doesn't exist
 	jwksPath := filepath.Join("internal", "domains_api", "jwk", "jwks.json")
+	dir := filepath.Dir(jwksPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory for JWKS file: %w", err)
+	}
+
 	if err := os.WriteFile(jwksPath, jwksBytes, 0644); err != nil {
 		return fmt.Errorf("failed to save JWKS file: %w", err)
 	}
