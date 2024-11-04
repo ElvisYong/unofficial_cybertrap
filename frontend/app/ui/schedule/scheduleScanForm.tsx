@@ -9,6 +9,9 @@ import { useState, useEffect } from "react";
 import { Domain, Template } from "@/app/types";
 import TemplateSearch from "./templateSearch";
 import DomainSearch from "./domainSearch";
+import { scanApi } from '@/api/scans';
+import { domainApi } from '@/api/domains';
+import { templateApi } from '@/api/templates';
 
 
 type ScheduleScanFormProps = {
@@ -23,15 +26,9 @@ export default function ScheduleScanForm({ onSubmit }: ScheduleScanFormProps) {
   //domains
   const [domains, setDomains] = useState<Domain[]>([]);
   const fetchDomains = async () => {
-    const endpoint = `${BASE_URL}/v1/domains`;
     try {
-      const response = await fetch(endpoint);
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
-      }
-      const data: Domain[] = await response.json();
+      const data = await domainApi.getAllDomains();
       setDomains(data);
-      console.log('domain', data);
     } catch (error) {
       console.error('Error fetching domains:', error);
     }
@@ -43,15 +40,9 @@ export default function ScheduleScanForm({ onSubmit }: ScheduleScanFormProps) {
   //templates
   const [templates, setTemplates] = useState<Template[]>([]);
   const fetchTemplates = async () => {
-    const endpoint = `${BASE_URL}/v1/templates`;
     try {
-      const response = await fetch(endpoint);
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
-      }
-      const data: Template[] = await response.json();
+      const data = await templateApi.getAllTemplates();
       setTemplates(data);
-      console.log('template', data);
     } catch (error) {
       console.error('Error fetching templates:', error);
     }
@@ -74,47 +65,23 @@ export default function ScheduleScanForm({ onSubmit }: ScheduleScanFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const scanData = {
-      domainID: selectedDomain?.id,
-      domain: selectedDomain?.domain, 
-      templateIDs: selectedTemplates.map(template => template.id), 
-      scheduledDate: scanDate ? format(scanDate, 'yyyy-MM-dd') : null,
-    };
-    console.log('scan submitted: ', scanData);
+    if (!selectedDomain?.id || !scanDate) {
+      console.error('Missing required fields');
+      return;
+    }
 
+    try {
+      await scanApi.scheduleScan(selectedDomain.id, selectedTemplates.map(template => template.id), format(scanDate, 'yyyy-MM-dd'));
 
-    // onSubmit(scanData);
-    setSelectedDomain(null);
-    setSelectedTemplates([]);
-    setScanDate(null);
-    // console.log('form submitted', selectedDomain);
+      console.log('Scan scheduled successfully');
+      setSelectedDomain(null);
+      setSelectedTemplates([]);
+      setScanDate(null);
+    } catch (error) {
+      console.error('Error submitting form:', error);
+    }
+  };
 
-
-      try {
-        // POST request to your API
-        const response = await fetch(`${BASE_URL}/v1/scans/schedule`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(scanData),
-        });
-  
-        if (response.ok) {
-          console.log('Scan scheduled successfully');
-          console.log(response);
-          setSelectedDomain(null); // Reset form state
-          setSelectedTemplates([]);
-          setScanDate(null);
-        } else {
-          const errorData = await response.json();
-          console.error('Error scheduling scan:', errorData);
-        }
-      } catch (error) {
-        console.error('Error submitting form:', error);
-      }
-    };
-  
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 mx-lg">
@@ -157,8 +124,8 @@ export default function ScheduleScanForm({ onSubmit }: ScheduleScanFormProps) {
           <PopoverContent className="p-0 w-auto">
             <Calendar
               mode="single"
-              selected={scanDate}
-              onSelect={setScanDate}
+              selected={scanDate as Date}
+              onSelect={(date: Date | undefined) => setScanDate(date ?? null)}
               initialFocus
             />
           </PopoverContent>

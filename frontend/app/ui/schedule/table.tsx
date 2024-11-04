@@ -1,106 +1,65 @@
 "use client";
 import { useEffect, useState } from 'react';
-import { XMarkIcon } from '@heroicons/react/24/outline'; // Import the Heroicon
-import { BASE_URL } from '@/data';
+import { XMarkIcon } from '@heroicons/react/24/outline';
 import { Domain, ScheduledScanResponse, Template } from '@/app/types';
+import { scanApi } from '@/api/scans';
+import { domainApi } from '@/api/domains';
+import { templateApi } from '@/api/templates';
 
 export default function ScheduleScanTable() {
   const [scans, setScans] = useState<ScheduledScanResponse[]>([]);
-
-  //domains
   const [domains, setDomains] = useState<Domain[]>([]);
+  const [templates, setTemplates] = useState<Template[]>([]);
+
   const fetchDomains = async () => {
-    const endpoint = `${BASE_URL}/v1/domains`;
     try {
-      const response = await fetch(endpoint);
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
-      }
-      const data: Domain[] = await response.json();
+      const data = await domainApi.getAllDomains();
       setDomains(data);
-      console.log('domain', data);
     } catch (error) {
       console.error('Error fetching domains:', error);
     }
   };
-  useEffect(() => {
-    fetchDomains();
-  }, []);
 
-  // Function to get the domain name by ID
-  const getDomainNameById = (domainID: string) => {
-    const domain = domains.find(d => d.id === domainID);
-    return domain ? domain.domain : 'Unknown Domain';
-  };
-
-  //templates
-  const [templates, setTemplates] = useState<Template[]>([]);
   const fetchTemplates = async () => {
-    const endpoint = `${BASE_URL}/v1/templates`;
     try {
-      const response = await fetch(endpoint);
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
-      }
-      const data: Template[] = await response.json();
+      const data = await templateApi.getAllTemplates();
       setTemplates(data);
-      console.log('template', data);
     } catch (error) {
       console.error('Error fetching templates:', error);
     }
-  }
-  useEffect(() => {
-    fetchTemplates();
-  }, []);
-
-  // Function to get the template names by their IDs
-  const getTemplateNamesByIds = (templateIDs: string[]) => {
-    if (!templateIDs || templateIDs.length === 0) {
-      return 'null'; // Return 'null' if template IDs are not provided or empty
-    }
-    const matchedTemplates = templates.filter(t => templateIDs.includes(t.id));
-    return matchedTemplates.map(t => t.name).join(', ');
   };
 
-  // Fetch the scheduled scans when the component mounts
   const fetchScheduledScans = async () => {
-    const endpoint = `${BASE_URL}/v1/scans/schedule`;
     try {
-      const response = await fetch(endpoint);
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
-      }
-
-      const data: ScheduledScanResponse[] = await response.json();
+      const data = await scanApi.getScheduledScans();
       setScans(data);
-      console.log('scan', data);
     } catch (error) {
-      console.error('Error fetching domains:', error);
+      console.error('Error fetching scheduled scans:', error);
     }
   };
 
   useEffect(() => {
     fetchScheduledScans();
     fetchDomains();
+    fetchTemplates();
   }, []);
 
+  const getDomainNameById = (domainID: string) => {
+    const domain = domains.find(d => d.id === domainID);
+    return domain ? domain.domain : 'Unknown Domain';
+  };
 
-  // Function to delete a scheduled scan by its ID
+  const getTemplateNamesByIds = (templateIDs: string[]) => {
+    if (!templateIDs || templateIDs.length === 0) {
+      return 'null';
+    }
+    const matchedTemplates = templates.filter(t => templateIDs.includes(t.id));
+    return matchedTemplates.map(t => t.name).join(', ');
+  };
+
   const handleDelete = async (scanID: string) => {
     try {
-      console.log('Deleting scan:', scanID);
-      const response = await fetch(`${BASE_URL}/v1/scans/schedule?ID=${scanID}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete scan');
-      }
-
-      // Update state to remove the deleted scan from the UI
+      await scanApi.deleteScheduledScan(scanID);
       setScans(prevScans => prevScans.filter(scan => scan.id !== scanID));
       console.log('Scan deleted successfully');
     } catch (error) {
@@ -134,7 +93,6 @@ export default function ScheduleScanTable() {
                   <XMarkIcon className="h-4 w-4 text-white" />
                 </button>
               </td>
-
             </tr>
           ))}
         </tbody>

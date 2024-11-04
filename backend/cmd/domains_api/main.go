@@ -99,7 +99,11 @@ func main() {
 	defer cognitoJWK.Stop() // Clean up when the application exits
 
 	// Initialize Cognito middleware
-	cognitoMiddleware := domainMiddleware.NewCognitoMiddleware(cognitoJWK)
+	cognitoMiddleware := domainMiddleware.NewCognitoMiddleware(
+		appConfig.CognitoRegion,
+		appConfig.CognitoUserPoolID,
+		appConfig.CognitoClientID,
+	)
 
 	// repositories DI
 	domainsRepo := r.NewDomainsRepository(mongoClient, appConfig.MongoDbName)

@@ -1,2 +1,25 @@
-export const BASE_URL: string = "http://a75d6504ef6df43ef9136c6996396272-41456714.ap-southeast-1.elb.amazonaws.com"
-// export const BASE_URL: string = "http://0.0.0.0:5000"
+import axios from 'axios';
+
+// export const BASE_URL: string = "http://a75d6504ef6df43ef9136c6996396272-41456714.ap-southeast-1.elb.amazonaws.com"
+export const BASE_URL: string = "http://0.0.0.0:5000";
+
+export const axiosInstance = axios.create({
+  baseURL: BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Add a request interceptor
+axiosInstance.interceptors.request.use(
+  (config) => {
+    const token = sessionStorage.getItem('access_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
