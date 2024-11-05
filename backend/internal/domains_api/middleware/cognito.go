@@ -14,24 +14,23 @@ import (
 )
 
 type contextKey string
+
 const jwtContextKey contextKey = "jwt"
 
 type CognitoMiddleware struct {
 	jwksURL  string
-	clientID string
 	issuer   string
 	keyCache struct {
-			keys jwk.Set
-			mu   sync.RWMutex
-			exp  time.Time
+		keys jwk.Set
+		mu   sync.RWMutex
+		exp  time.Time
 	}
 }
 
-func NewCognitoMiddleware(region, userPoolID, clientID string) *CognitoMiddleware {
+func NewCognitoMiddleware(region, userPoolID string) *CognitoMiddleware {
 	return &CognitoMiddleware{
-		jwksURL:  fmt.Sprintf("https://cognito-idp.%s.amazonaws.com/%s/.well-known/jwks.json", region, userPoolID),
-		clientID: clientID,
-		issuer:   fmt.Sprintf("https://cognito-idp.%s.amazonaws.com/%s", region, userPoolID),
+		jwksURL: fmt.Sprintf("https://cognito-idp.%s.amazonaws.com/%s/.well-known/jwks.json", region, userPoolID),
+		issuer:  fmt.Sprintf("https://cognito-idp.%s.amazonaws.com/%s", region, userPoolID),
 	}
 }
 

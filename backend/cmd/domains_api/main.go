@@ -91,7 +91,6 @@ func main() {
 	cognitoJWK, err := jwk.NewCognitoJWK(
 		appConfig.CognitoRegion,
 		appConfig.CognitoUserPoolID,
-		appConfig.CognitoClientID,
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize Cognito JWK")
@@ -102,7 +101,6 @@ func main() {
 	cognitoMiddleware := domainMiddleware.NewCognitoMiddleware(
 		appConfig.CognitoRegion,
 		appConfig.CognitoUserPoolID,
-		appConfig.CognitoClientID,
 	)
 
 	// repositories DI

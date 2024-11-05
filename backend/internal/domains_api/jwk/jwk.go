@@ -17,16 +17,14 @@ type CognitoJWK struct {
 	keySet     jwk.Set
 	Region     string
 	PoolID     string
-	ClientID   string
 	updateLock sync.RWMutex
 	stopChan   chan struct{} // Channel to stop the refresh goroutine
 }
 
-func NewCognitoJWK(region, poolID, clientID string) (*CognitoJWK, error) {
+func NewCognitoJWK(region, poolID string) (*CognitoJWK, error) {
 	c := &CognitoJWK{
 		Region:   region,
 		PoolID:   poolID,
-		ClientID: clientID,
 		stopChan: make(chan struct{}),
 	}
 
