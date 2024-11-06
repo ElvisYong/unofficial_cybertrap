@@ -11,6 +11,8 @@ import { BASE_URL } from '@/data';
 import { Domain } from '@/app/types';
 import { useToast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
+import { domainApi } from '@/api/domains';
+import { scanApi } from '@/api/scans';
 
 export default function Targets() : JSX.Element {
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
@@ -23,13 +25,8 @@ export default function Targets() : JSX.Element {
   const handleCloseModal = () => setIsModalOpen(false);
 
   const fetchDomains = async () => {
-    const endpoint = `${BASE_URL}/v1/domains`;
     try {
-      const response = await fetch(endpoint);
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
-      }
-      const data: Domain[] = await response.json();
+      const data = await domainApi.getAllDomains();
       const sortedDomains = data.sort((a, b) => 
         new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
       );
@@ -58,22 +55,11 @@ export default function Targets() : JSX.Element {
     const domainNames = domains.map(domain => domain.domain);
     
     try {
-      const response = await fetch(`${BASE_URL}/v1/scans/all`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ domains: domainNames }),
+      await scanApi.scanAll(domainNames);
+      toast({
+        title: "Success",
+        description: "Scan initiated for all targets.",
       });
-
-      if (response.ok) {
-        toast({
-          title: "Success",
-          description: "Scan initiated for all targets.",
-        });
-      } else {
-        throw new Error('Failed to initiate scan for all targets');
-      }
     } catch (error) {
       console.error('Error initiating scan for all targets:', error);
       toast({

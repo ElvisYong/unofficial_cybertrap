@@ -23,6 +23,10 @@ type DomainsConfig struct {
 
 	// RabbitMQ related configs
 	RabbitMqUri string `mapstructure:"RABBIT_MQ_URI"`
+
+	// Cognito related configs
+	CognitoRegion     string `mapstructure:"COGNITO_REGION"`
+	CognitoUserPoolID string `mapstructure:"COGNITO_USER_POOL_ID"`
 }
 
 func LoadDomainsConfig(path string) (DomainsConfig, error) {

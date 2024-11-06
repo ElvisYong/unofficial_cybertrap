@@ -6,6 +6,7 @@ import Grab from './ui/components/grab.png'
 import Image from 'next/image';
 
 export default function Page() {
+
   return (
     <main className="flex min-h-screen flex-col p-6">
       <div className="flex h-20 shrink-0 items-end rounded-lg bg-green-500 p-4 md:h-52">
@@ -23,10 +24,10 @@ export default function Page() {
             </span>.
           </p>
           <Link
-            href="/login"
+            href="/dashboard"
             className="flex items-center gap-5 self-start rounded-lg bg-green-500 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-green-400 md:text-base"
           >
-            <span>Log in</span> <ArrowRightIcon className="w-5 md:w-6" />
+            <span>Go to Dashboard</span> <ArrowRightIcon className="w-5 md:w-6" />
           </Link>
         </div>
 

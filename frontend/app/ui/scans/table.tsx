@@ -18,6 +18,7 @@ import SortButton from '@/components/ui/sortButton'
 import { BASE_URL } from '@/data'
 import { Domain, Scan } from '@/app/types'
 import { format } from 'date-fns'; // Import date-fns for formatting
+import { domainApi } from '@/api/domains';
 
 export default function ScanResultsTable() {
   const [scans, setScans] = useState<Scan[]>([])
@@ -65,13 +66,8 @@ export default function ScanResultsTable() {
   }  
 
   const fetchDomains = async () => {
-    const endpoint = `${BASE_URL}/v1/domains`;
     try {
-      const response = await fetch(endpoint);
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
-      }
-      const data: Domain[] = await response.json();
+      const data = await domainApi.getAllDomains();
       setDomains(data);
     } catch (error) {
       console.error('Error fetching domains:', error);
@@ -86,8 +82,8 @@ export default function ScanResultsTable() {
     setSortConfig({ key, direction })
 
     const sortedScans = [...filteredScans].sort((a, b) => {
-      const aValue = key === 'scanDate' ? new Date(a[key]) : a[key]
-      const bValue = key === 'scanDate' ? new Date(b[key]) : b[key]
+      const aValue = key === 'scanDate' ? new Date(a.scanDate) : a[key]
+      const bValue = key === 'scanDate' ? new Date(b.scanDate) : b[key]
       return direction === 'asc' ? aValue - bValue : bValue - aValue
     })
     setFilteredScans(sortedScans)
