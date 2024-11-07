@@ -77,11 +77,18 @@ export default function ScanResultsTable() {
       direction = 'desc'
     }
     setSortConfig({ key, direction })
-
     const sortedScans = [...filteredScans].sort((a, b) => {
-      const aValue = key === 'scanDate' ? new Date(a.scanDate) : a[key]
-      const bValue = key === 'scanDate' ? new Date(b.scanDate) : b[key]
-      return direction === 'asc' ? aValue - bValue : bValue - aValue
+      if (key === 'scanDate') {
+        const aDate = new Date(a.scanDate).getTime()
+        const bDate = new Date(b.scanDate).getTime()
+        return direction === 'asc' ? aDate - bDate : bDate - aDate
+      }
+      
+      const aValue = String(a[key as keyof Scan])
+      const bValue = String(b[key as keyof Scan])
+      return direction === 'asc' 
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue)
     })
     setFilteredScans(sortedScans)
   }

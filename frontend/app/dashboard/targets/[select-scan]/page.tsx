@@ -8,23 +8,9 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 import { BASE_URL } from "@/data";
-
-interface Template {
-  ID: string;
-  TemplateID: string;
-  Name: string;
-  Description: string;
-  S3URL: string;
-  Metadata: null | any;
-  Type: string;
-  CreatedAt: string;
-}
-interface Domain {
-    ID: string;
-    Domain: string;
-    UploadedAt: string;
-    UserID: string; 
-  }
+import { domainApi } from "@/api/domains";
+import { Domain, Template } from "@/app/types";
+import { scanApi } from "@/api/scans";
 
 export default function SelectScan() {
     const [templates, setTemplates] = useState<Template[]>([]);
@@ -54,30 +40,25 @@ export default function SelectScan() {
                     variant: "destructive",
                 });
             });
-    }, [toast]); 
+    }, [toast]);
 
     const handleTemplateSelection = (templateId: string) => {
-        setSelectedTemplates(prev => 
+        setSelectedTemplates(prev =>
             prev.includes(templateId)
                 ? prev.filter(id => id !== templateId)
                 : [...prev, templateId]
         );
     };
-    
+
     //domains
     const [domains, setDomains] = useState<Domain[]>([]);
     const fetchDomains = async () => {
-        const endpoint = `${BASE_URL}/v1/domains`;
         try {
-        const response = await fetch(endpoint);
-        if (!response.ok) {
-            throw new Error('Network response was not ok');
-        }
-        const data: Domain[] = await response.json();
-        setDomains(data);
-        console.log('domain', data);
+            const data = await domainApi.getAllDomains();
+            setDomains(data);
+            console.log('domain', data);
         } catch (error) {
-        console.error('Error fetching domains:', error);
+            console.error('Error fetching domains:', error);
         }
     };
     useEffect(() => {
@@ -86,15 +67,15 @@ export default function SelectScan() {
 
     // Function to get the domain name by ID
     const getDomainNameById = (domainID: string) => {
-        const domain = domains.find(d => d.ID === domainID);
-        return domain ? domain.Domain : 'Unknown Domain';
+        const domain = domains.find(d => d.id === domainID);
+        return domain ? domain.domain : 'Unknown Domain';
     };
 
     const handleSubmit = async (event: React.FormEvent) => {
         event.preventDefault();
-    
+
         const domainId = target;
-    
+
         if (!domainId) {
             toast({
                 title: "Error",
@@ -103,63 +84,32 @@ export default function SelectScan() {
             });
             return;
         }
-    
-        const templateIds = scanAllTemplates ? [] : selectedTemplates;
-        // const domainIdScanAll = templates.length > 0 ? templates[0].ID : "";
 
+        const templateIds = scanAllTemplates ? [] : selectedTemplates;
         const domainIdScanAll = target;
 
         console.log('template', templateIds);
         console.log('DIF', domainIdScanAll);
-        // console.log('name', domainName)
-    
+
         try {
             const requestBody = {
-                domainId: domainIdScanAll,
+                domainIds: [domainIdScanAll],
                 templateIds,
                 scanAllNuclei,
-                scanName,
             };
-        
+
             console.log('Request Body:', JSON.stringify(requestBody, null, 2));
-        
-            const response = await fetch(`${BASE_URL}/v1/scans`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(requestBody),
+
+            await scanApi.scanDomains(requestBody.domainIds, requestBody.templateIds, requestBody.scanAllNuclei);
+
+            toast({
+                title: "Success",
+                description: "Scan initiated successfully.",
             });
-        
-            console.log('Response Status:', response.status);
-            
-            let responseData;
-        
-            // Check if response is ok and has a body
-            if (response.ok) {
-                const contentType = response.headers.get('Content-Type');
-                if (contentType && contentType.includes('application/json')) {
-                    responseData = await response.json();
-                } else {
-                    responseData = {}; // Handle the case where there's no JSON
-                }
-        
-                console.log('Response Data:', responseData);
-                
-                toast({
-                    title: "Success",
-                    description: "Scan initiated successfully.",
-                });
-        
-                setTimeout(() => {
-                    router.push("/dashboard/scans");
-                }, 2000); // 2 second delay
-            } else {
-                // If response is not ok, attempt to read the error message
-                const errorText = await response.text(); // Use text() to get the raw response
-                const errorMessage = errorText ? errorText : 'Failed to initiate scan';
-                throw new Error(errorMessage);
-            }
+
+            setTimeout(() => {
+                router.push("/dashboard/scans");
+            }, 2000); // 2 second delay
         } catch (error) {
             console.error('Error initiating scan:', error);
             toast({
@@ -168,9 +118,7 @@ export default function SelectScan() {
                 variant: "destructive",
             });
         }
-        
-        
-    };    
+    };
 
     return (
         <div className="flex items-center justify-center min-h-screen bg-gray-100">
@@ -207,9 +155,9 @@ export default function SelectScan() {
                             <Checkbox
                                 id="Templates"
                                 checked={scanAllTemplates}
-                                onCheckedChange={(checked) => setScanAllTemplates(checked as boolean)}
+                                onCheckedChange={(checked) => setScanAllTemplates(checked.valueOf() as boolean)}
                             />
-                            <label htmlFor="scanAllTemplates" className="text-gray-700">Scan All Templates</label>
+                            <label htmlFor="Templates" className="text-gray-700">Scan All Templates</label>
                         </div>
                     </div>
                     <Button

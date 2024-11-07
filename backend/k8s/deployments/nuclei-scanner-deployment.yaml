@@ -5,7 +5,7 @@ metadata:
   labels:
     app: nuclei-scanner
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: nuclei-scanner
@@ -22,11 +22,11 @@ spec:
         command: ["/bin/nuclei_scanner"]
         resources:
           requests:
-            cpu: "1000m"
-            memory: "2048Mi"
+            cpu: "250m"
+            memory: "512Mi"
           limits:
-            cpu: "2000m"
-            memory: "3072Mi"
+            cpu: "500m"
+            memory: "1024Mi"
         env:
         - name: MAX_CONCURRENT_SCANS
           value: "1"
