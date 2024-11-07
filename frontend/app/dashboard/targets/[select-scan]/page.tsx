@@ -207,7 +207,7 @@ export default function SelectScan() {
                             <Checkbox
                                 id="Templates"
                                 checked={scanAllTemplates}
-                                onCheckedChange={setScanAllTemplates}
+                                onCheckedChange={(checked) => setScanAllTemplates(checked as boolean)}
                             />
                             <label htmlFor="scanAllTemplates" className="text-gray-700">Scan All Templates</label>
                         </div>

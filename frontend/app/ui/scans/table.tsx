@@ -19,6 +19,7 @@ import { BASE_URL } from '@/data'
 import { Domain, Scan } from '@/app/types'
 import { format } from 'date-fns'; // Import date-fns for formatting
 import { domainApi } from '@/api/domains';
+import { scanApi } from '@/api/scans'; // Import scanApi
 
 export default function ScanResultsTable() {
   const [scans, setScans] = useState<Scan[]>([])
@@ -49,11 +50,7 @@ export default function ScanResultsTable() {
 
   const fetchScans = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/v1/scans`)
-      if (!response.ok) {
-        throw new Error('Failed to fetch scans')
-      }
-      const data = await response.json()
+      const data = await scanApi.getAllScans(); // Use scanApi to fetch scans
       const sortedScans = data.sort((a: Scan, b: Scan) => 
         new Date(b.scanDate).getTime() - new Date(a.scanDate).getTime()
       )
