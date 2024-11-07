@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: scan-scheduler
+  namespace: default
+spec:
+  schedule: "0 0 * * *" # This cron expression means every day at midnight
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: scan-scheduler
+            image: your-docker-repo/scan-scheduler:latest # Replace with your actual image
+            env:
+            - name: MONGO_DB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-secret
+                  key: uri
+            - name: MONGO_DB_NAME
+              value: "cybertrap"
+            - name: RABBIT_MQ_URI
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: uri
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aws-secret
+                  key: access-key-id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aws-secret
+                  key: secret-access-key
+            - name: SCAN_RESULTS_BUCKET_NAME
+              value: "cybertrap-scan-results"
+            - name: TEMPLATES_BUCKET_NAME
+              value: "cybertrap-templates-bucket"
+            - name: MAX_CONCURRENT_SCANS
+              value: "1"
+            - name: DEBUG
+              value: "true"
+          restartPolicy: OnFailure
