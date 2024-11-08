@@ -107,14 +107,28 @@ func (r *DomainsRepository) DeleteDomainById(id string) error {
 func (r *DomainsRepository) InsertDomains(domains []models.Domain) error {
 	collection := r.mongoClient.Database(r.mongoDbName).Collection("domains")
 	var documents []interface{}
+
 	for _, domain := range domains {
-		documents = append(documents, domain)
+		// Check if the domain already exists
+		filter := bson.M{"domain": domain.Domain} // Assuming 'DomainName' is the unique field
+		count, err := collection.CountDocuments(context.Background(), filter)
+		if err != nil {
+			log.Error().Err(err).Msg("Error checking for existing domain")
+			return err
+		}
+
+		// If the domain does not exist, add it to the documents slice
+		if count == 0 {
+			documents = append(documents, domain)
+		}
 	}
 
-	_, err := collection.InsertMany(context.Background(), documents)
-	if err != nil {
-		log.Error().Err(err).Msg("Error inserting domains into MongoDB")
-		return err
+	if len(documents) > 0 {
+		_, err := collection.InsertMany(context.Background(), documents)
+		if err != nil {
+			log.Error().Err(err).Msg("Error inserting domains into MongoDB")
+			return err
+		}
 	}
 
 	return nil
