@@ -24,6 +24,7 @@ func NewScansHandler(r *chi.Mux, service s.ScansService) {
 
 	r.Route("/v1/scans", func(r chi.Router) {
 		r.Get("/", handler.GetAllScans)
+		r.Get("/multi", handler.GetAllMultiScans)
 		r.Post("/", handler.ScanDomains)
 		r.Post("/all", handler.ScanAllDomains)
 		r.Get("/schedule", handler.GetAllScheduledScans)
@@ -154,4 +155,16 @@ func (h *ScansHandler) DeleteScheduledScanRequest(w http.ResponseWriter, r *http
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Scan record deleted successfully"))
 
+}
+
+func (h *ScansHandler) GetAllMultiScans(w http.ResponseWriter, r *http.Request) {
+	multiScans, err := h.ScansService.GetAllMultiScans()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(multiScans)
+	w.WriteHeader(http.StatusOK)
 }

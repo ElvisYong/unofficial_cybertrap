@@ -343,3 +343,31 @@ func (s *ScansService) DeleteScheduledScanRequest(id string) error {
 
 	return nil
 }
+
+func (s *ScansService) GetAllMultiScans() ([]dto.GetAllMultiScansResponse, error) {
+	multiScans, err := s.multiScanRepo.GetAllMultiScans()
+	if err != nil {
+		log.Error().Err(err).Msg("Error fetching multi-scans from the database")
+		return nil, err
+	}
+
+	multiScansResponse := make([]dto.GetAllMultiScansResponse, 0)
+	for _, multiScan := range multiScans {
+		scanIds := make([]string, 0)
+		for _, scanId := range multiScan.ScanIDs {
+			scanIds = append(scanIds, scanId.Hex())
+		}
+
+		multiScansResponse = append(multiScansResponse, dto.GetAllMultiScansResponse{
+			ID:             multiScan.ID.Hex(),
+			ScanIDs:        scanIds,
+			Name:           multiScan.Name,
+			TotalScans:     multiScan.TotalScans,
+			CompletedScans: len(multiScan.CompletedScans),
+			FailedScans:    len(multiScan.FailedScans),
+			Status:         multiScan.Status,
+		})
+	}
+
+	return multiScansResponse, nil
+}

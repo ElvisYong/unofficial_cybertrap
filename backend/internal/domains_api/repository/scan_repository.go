@@ -71,3 +71,21 @@ func (r *ScansRepository) BatchInsertScans(scans []models.Scan) error {
 
 	return nil
 }
+
+func (r *ScansRepository) GetAllMultiScans() ([]models.MultiScan, error) {
+	collection := r.mongoClient.Database(r.mongoDbName).Collection("multi_scans")
+	cursor, err := collection.Find(context.Background(), bson.M{})
+	if err != nil {
+		log.Error().Err(err).Msg("Error fetching multi-scans from MongoDB")
+		return nil, err
+	}
+
+	var multiScans []models.MultiScan
+
+	if err = cursor.All(context.Background(), &multiScans); err != nil {
+		log.Error().Err(err).Msg("Error populating multi-scans from MongoDB cursor")
+		return nil, err
+	}
+
+	return multiScans, nil
+}
