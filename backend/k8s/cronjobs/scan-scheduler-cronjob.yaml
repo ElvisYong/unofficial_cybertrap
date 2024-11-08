@@ -11,7 +11,7 @@ spec:
         spec:
           containers:
           - name: scan-scheduler
-            image: your-docker-repo/scan-scheduler:latest # Replace with your actual image
+            image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:schedule-scan-service-v0.1.0
             env:
             - name: MONGO_DB_URI
               valueFrom:

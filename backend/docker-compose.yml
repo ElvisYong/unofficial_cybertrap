@@ -19,9 +19,12 @@ services:
     env_file:
       - .env.nuclei
 
-  # schedule_scan_service:
-  #   build: .
-  #   command: [ "/bin/scan_scheduler" ]
-  #   env_file:
-  #     - .env.scheduler
+  schedule_scan_service:
+    image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:schedule-scan-service-v0.1.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: [ "/bin/scan_scheduler" ]
+    env_file:
+      - .env.scheduler
 
