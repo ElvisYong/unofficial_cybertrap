@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -21,6 +22,35 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+func connectWithRetry(uri string, maxRetries int) (*mongo.Client, error) {
+	var client *mongo.Client
+	var err error
+
+	// Configure connection pool
+	clientOpts := options.Client().
+		ApplyURI(uri).
+		SetMaxPoolSize(5).           // Limit concurrent connections
+		SetMinPoolSize(1).           // Keep at least one connection
+		SetMaxConnecting(2).         // Limit new connections being established
+		SetRetryReads(true).         // Enable retry for read operations
+		SetRetryWrites(true).        // Enable retry for write operations
+		SetTimeout(10 * time.Second) // Set operation timeout
+
+	for i := 0; i < maxRetries; i++ {
+		client, err = mongo.Connect(context.Background(), clientOpts)
+		if err == nil {
+			// Test the connection
+			err = client.Ping(context.Background(), nil)
+			if err == nil {
+				return client, nil
+			}
+		}
+		log.Warn().Msgf("Failed to connect to MongoDB (attempt %d/%d): %v", i+1, maxRetries, err)
+		time.Sleep(time.Second * time.Duration(i+1)) // Exponential backoff
+	}
+	return nil, fmt.Errorf("failed to connect after %d attempts: %v", maxRetries, err)
+}
+
 func main() {
 	// Start logger
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
@@ -31,11 +61,10 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to load app config")
 	}
 
-	// Initialize MongoDB client
-	clientOpts := options.Client().ApplyURI(config.MongoDbUri)
-	mongoClient, err := mongo.Connect(context.Background(), clientOpts)
+	// Initialize MongoDB client with retry
+	mongoClient, err := connectWithRetry(config.MongoDbUri, 5)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to connect to MongoDB")
+		log.Fatal().Err(err).Msg("Failed to connect to MongoDB after retries")
 	}
 	defer mongoClient.Disconnect(context.Background())
 
@@ -85,15 +114,23 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to unmarshal message")
 	}
 
+	// Function to update scan status on failure
+	updateFailureStatus := func(err error) {
+		log.Error().Err(err).Msg("Operation failed")
+		if updateErr := mongoHelper.UpdateScanStatus(context.Background(), scanMsg.ScanId, "failed"); updateErr != nil {
+			log.Error().Err(updateErr).Msg("Failed to update scan status to failed")
+		}
+		os.Exit(1)
+	}
+
 	log.Info().Msgf("Processing message: %s", msg.Body)
 
 	nh := helpers.NewNucleiHelper(s3Helper, mongoHelper)
 
 	// Update scan status to "in-progress"
 	log.Info().Msgf("Updating scan status to in-progress")
-	err = mongoHelper.UpdateScanStatus(context.Background(), scanMsg.ScanId, "in-progress")
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to update scan status")
+	if err = mongoHelper.UpdateScanStatus(context.Background(), scanMsg.ScanId, "in-progress"); err != nil {
+		updateFailureStatus(fmt.Errorf("failed to update scan status to in-progress: %w", err))
 	}
 
 	// Download templates
@@ -129,16 +166,45 @@ func main() {
 	wg.Wait()
 	close(errChan)
 
-	for err := range errChan {
-		log.Error().Err(err).Msg("Error occurred during template processing")
-		os.Exit(1)
+	// Check for any errors during template processing
+	if err := processErrors(errChan); err != nil {
+		updateFailureStatus(fmt.Errorf("template processing failed: %w", err))
 	}
 
 	log.Info().Msg("Successfully downloaded templates")
 
 	// Perform the scan
-	nh.ScanWithNuclei(scanMsg.MultiScanId, scanMsg.ScanId, scanMsg.Domain, scanMsg.DomainId, templateFilePaths, scanMsg.TemplateIds, scanMsg.ScanAllNuclei, config.Debug)
+	if err = nh.ScanWithNuclei(
+		scanMsg.MultiScanId,
+		scanMsg.ScanId,
+		scanMsg.Domain,
+		scanMsg.DomainId,
+		templateFilePaths,
+		scanMsg.TemplateIds,
+		scanMsg.ScanAllNuclei,
+		config.Debug,
+	); err != nil {
+		updateFailureStatus(fmt.Errorf("nuclei scan failed: %w", err))
+	}
+
+	// Update status to completed on success
+	if err = mongoHelper.UpdateScanStatus(context.Background(), scanMsg.ScanId, "completed"); err != nil {
+		updateFailureStatus(fmt.Errorf("failed to update scan status to completed: %w", err))
+	}
 
 	log.Info().Msg("Scan completed successfully, exiting...")
 	os.Exit(0)
+}
+
+func processErrors(errChan chan error) error {
+	var errors []string
+	for err := range errChan {
+		if err != nil {
+			errors = append(errors, err.Error())
+		}
+	}
+	if len(errors) > 0 {
+		return fmt.Errorf("multiple errors occurred: %v", errors)
+	}
+	return nil
 }

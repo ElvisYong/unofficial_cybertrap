@@ -3,6 +3,8 @@ package rabbitmq
 import (
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
+	"time"
 
 	"github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog/log"
@@ -23,7 +25,13 @@ type ScanMessage struct {
 type RabbitMQClient struct {
 	conn    *amqp091.Connection
 	channel *amqp091.Channel
+	url     string
 }
+
+const (
+	maxRetries    = 5
+	retryInterval = 2 * time.Second
+)
 
 func NewRabbitMQClient(amqpURL string) (*RabbitMQClient, error) {
 	// Parse the AMQP URL
@@ -57,6 +65,7 @@ func NewRabbitMQClient(amqpURL string) (*RabbitMQClient, error) {
 	return &RabbitMQClient{
 		conn:    conn,
 		channel: channel,
+		url:     amqpURL,
 	}, nil
 }
 
@@ -144,6 +153,12 @@ func (r *RabbitMQClient) Consume() (<-chan amqp091.Delivery, error) {
 }
 
 func (r *RabbitMQClient) Get() (*amqp091.Delivery, bool, error) {
+	if r.channel == nil || r.channel.IsClosed() {
+		if err := r.reconnect(); err != nil {
+			return nil, false, fmt.Errorf("failed to reconnect: %w", err)
+		}
+	}
+
 	msg, ok, err := r.channel.Get(
 		"nuclei_scan_queue", // queue
 		false,               // auto-ack
@@ -162,4 +177,46 @@ func (r *RabbitMQClient) Close() {
 	if err := r.conn.Close(); err != nil {
 		log.Logger.Error().Err(err).Msg("Failed to close connection")
 	}
+}
+
+func (r *RabbitMQClient) reconnect() error {
+	for i := 0; i < maxRetries; i++ {
+		// Parse the AMQP URL and set up TLS config (reuse from NewRabbitMQClient)
+		uri, err := amqp091.ParseURI(r.url)
+		if err != nil {
+			continue
+		}
+
+		tlsConfig := &tls.Config{
+			ServerName: uri.Host,
+			ClientAuth: tls.RequireAndVerifyClientCert,
+		}
+
+		r.conn, err = amqp091.DialTLS(r.url, tlsConfig)
+		if err != nil {
+			log.Warn().Err(err).Msgf("Failed to reconnect to RabbitMQ (attempt %d/%d)", i+1, maxRetries)
+			time.Sleep(retryInterval)
+			continue
+		}
+
+		r.channel, err = r.conn.Channel()
+		if err != nil {
+			log.Warn().Err(err).Msgf("Failed to create channel (attempt %d/%d)", i+1, maxRetries)
+			r.conn.Close()
+			time.Sleep(retryInterval)
+			continue
+		}
+
+		// Redeclare exchange and queue
+		err = r.DeclareExchangeAndQueue()
+		if err != nil {
+			log.Warn().Err(err).Msgf("Failed to declare exchange and queue (attempt %d/%d)", i+1, maxRetries)
+			r.Close()
+			time.Sleep(retryInterval)
+			continue
+		}
+
+		return nil
+	}
+	return fmt.Errorf("failed to reconnect after %d attempts", maxRetries)
 }

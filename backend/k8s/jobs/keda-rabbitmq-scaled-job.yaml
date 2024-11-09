@@ -23,7 +23,6 @@ spec:
   jobTargetRef:
     parallelism: 1
     completions: 1
-    backoffLimit: 4
     template:
       metadata:
         labels:
@@ -73,7 +72,7 @@ spec:
               secretKeyRef:
                 name: rabbitmq-secret
                 key: uri
-        restartPolicy: Never
+        restartPolicy: OnFailure
   pollingInterval: 30
   successfulJobsHistoryLimit: 5
   failedJobsHistoryLimit: 5

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -36,9 +37,7 @@ func (nh *NucleiHelper) ScanWithNuclei(
 	templateIDs []primitive.ObjectID,
 	scanAllNuclei bool,
 	debug bool,
-) {
-	startTime := time.Now()
-
+) error {
 	// Check the length of templateFiles
 	templateSources := nuclei.TemplateSources{
 		Templates: templateFilePaths,
@@ -65,8 +64,10 @@ func (nh *NucleiHelper) ScanWithNuclei(
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to execute scan")
 		// Update scan status to "failed"
-		nh.mongoHelper.UpdateScanStatus(context.Background(), scanID, "failed")
-		return
+		if updateErr := nh.mongoHelper.UpdateScanStatus(context.Background(), scanID, "failed"); updateErr != nil {
+			log.Error().Err(updateErr).Msg("Failed to update scan status")
+		}
+		return fmt.Errorf("failed to create nuclei engine: %w", err)
 	}
 
 	// Disable host errors
@@ -83,9 +84,13 @@ func (nh *NucleiHelper) ScanWithNuclei(
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to load templates")
 		// Update scan status to "failed"
-		nh.mongoHelper.UpdateScanStatus(context.Background(), scanID, "failed")
-		nh.mongoHelper.UpdateMultiScanStatus(context.Background(), multiScanId, "failed", nil, &scanID)
-		return
+		if updateErr := nh.mongoHelper.UpdateScanStatus(context.Background(), scanID, "failed"); updateErr != nil {
+			log.Error().Err(updateErr).Msg("Failed to update scan status")
+		}
+		if updateErr := nh.mongoHelper.UpdateMultiScanStatus(context.Background(), multiScanId, "failed", nil, &scanID); updateErr != nil {
+			log.Error().Err(updateErr).Msg("Failed to update multi scan status")
+		}
+		return fmt.Errorf("failed to load templates: %w", err)
 	}
 
 	// Load the targets from the domain fetched from MongoDB
@@ -102,13 +107,15 @@ func (nh *NucleiHelper) ScanWithNuclei(
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to execute scan")
 		// Update scan status to "failed"
-		nh.mongoHelper.UpdateScanStatus(context.Background(), scanID, "failed")
-		nh.mongoHelper.UpdateMultiScanStatus(context.Background(), multiScanId, "failed", &scanID, nil)
-		return
+		if updateErr := nh.mongoHelper.UpdateScanStatus(context.Background(), scanID, "failed"); updateErr != nil {
+			log.Error().Err(updateErr).Msg("Failed to update scan status")
+		}
+		if updateErr := nh.mongoHelper.UpdateMultiScanStatus(context.Background(), multiScanId, "failed", &scanID, nil); updateErr != nil {
+			log.Error().Err(updateErr).Msg("Failed to update multi scan status")
+		}
+		return fmt.Errorf("failed to execute scan: %w", err)
 	}
-
-	scanDuration := time.Since(startTime).Milliseconds()
-	log.Info().Msgf("Scan took %d ms", scanDuration)
+	log.Info().Msg("Scan completed")
 
 	log.Info().Msgf("There are %d results", len(scanResults))
 
@@ -169,28 +176,27 @@ func (nh *NucleiHelper) ScanWithNuclei(
 		S3ResultURL: scanResultUrls,
 		ScanDate:    time.Now(),
 		Status:      "completed",
-		ScanTook:    scanDuration,
 	}
 
 	err = nh.mongoHelper.UpdateScanResult(context.Background(), scan)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to update scan result")
 		nh.mongoHelper.UpdateScanStatus(context.Background(), scanID, "failed")
-		return
+		return fmt.Errorf("failed to update scan result: %w", err)
 	}
 
 	// First, update the completed scans for this multi-scan
 	err = nh.mongoHelper.UpdateMultiScanStatus(context.Background(), multiScanId, "", &scanID, nil)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to update multi scan status")
-		return
+		return fmt.Errorf("failed to update multi scan status: %w", err)
 	}
 
 	// Then, fetch the updated multi-scan to check if all scans are completed
 	multiScan, err := nh.mongoHelper.FindMultiScanByID(context.Background(), multiScanId)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to fetch multi scan")
-		return
+		return fmt.Errorf("failed to fetch multi scan: %w", err)
 	}
 
 	if len(multiScan.CompletedScans) == multiScan.TotalScans {
@@ -198,9 +204,11 @@ func (nh *NucleiHelper) ScanWithNuclei(
 		err = nh.mongoHelper.UpdateMultiScanStatus(context.Background(), multiScanId, "completed", nil, nil)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to update multi scan status to completed")
-			return
+			return fmt.Errorf("failed to update multi scan status to completed: %w", err)
 		}
 	}
 
 	log.Info().Msg("Completed scan and updated scan result for scanID: " + scanID.Hex())
+
+	return nil
 }
