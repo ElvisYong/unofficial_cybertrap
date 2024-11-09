@@ -15,4 +15,5 @@ type Scan struct {
 	Status      string               `bson:"status"`          // pending, in-progress, completed, failed
 	Error       interface{}          `bson:"error,omitempty"` // Store error information if the scan fails
 	S3ResultURL []string             `bson:"s3_result_url,"`  // URL to result stored in S3, if applicable
+	ScanTook    int64                `bson:"scan_took"`       // Time taken to complete the scan
 }

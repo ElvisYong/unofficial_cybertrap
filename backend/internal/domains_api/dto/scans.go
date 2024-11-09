@@ -35,6 +35,7 @@ type GetAllScansResponse struct {
 	Status      string   `json:"status"`
 	Error       string   `json:"error,omitempty"`
 	S3ResultURL []string `json:"s3ResultUrl,omitempty"`
+	ScanTook    int64    `json:"scanTook"`
 }
 
 type GetAllMultiScansResponse struct {

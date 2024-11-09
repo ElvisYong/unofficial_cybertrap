@@ -110,3 +110,22 @@ func (r *ScansRepository) GetScansByIds(scanIds []primitive.ObjectID) ([]models.
 
 	return scans, nil
 }
+
+func (r *ScansRepository) UpdateScanWithDuration(ctx context.Context, scanID primitive.ObjectID, status string, duration int64) error {
+	collection := r.mongoClient.Database(r.mongoDbName).Collection(r.collectionName)
+	
+	update := bson.M{
+		"$set": bson.M{
+			"status":    status,
+			"scan_took": duration,
+		},
+	}
+	
+	_, err := collection.UpdateOne(ctx, bson.M{"_id": scanID}, update)
+	if err != nil {
+		log.Error().Err(err).Msg("Error updating scan duration in MongoDB")
+		return err
+	}
+	
+	return nil
+}

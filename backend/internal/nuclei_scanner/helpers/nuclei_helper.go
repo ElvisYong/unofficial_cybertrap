@@ -37,6 +37,8 @@ func (nh *NucleiHelper) ScanWithNuclei(
 	scanAllNuclei bool,
 	debug bool,
 ) {
+	startTime := time.Now()
+
 	// Check the length of templateFiles
 	templateSources := nuclei.TemplateSources{
 		Templates: templateFilePaths,
@@ -104,7 +106,9 @@ func (nh *NucleiHelper) ScanWithNuclei(
 		nh.mongoHelper.UpdateMultiScanStatus(context.Background(), multiScanId, "failed", &scanID, nil)
 		return
 	}
-	log.Info().Msg("Scan completed")
+
+	scanDuration := time.Since(startTime).Milliseconds()
+	log.Info().Msgf("Scan took %d ms", scanDuration)
 
 	log.Info().Msgf("There are %d results", len(scanResults))
 
@@ -165,6 +169,7 @@ func (nh *NucleiHelper) ScanWithNuclei(
 		S3ResultURL: scanResultUrls,
 		ScanDate:    time.Now(),
 		Status:      "completed",
+		ScanTook:    scanDuration,
 	}
 
 	err = nh.mongoHelper.UpdateScanResult(context.Background(), scan)

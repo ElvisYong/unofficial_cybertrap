@@ -55,6 +55,7 @@ func (s *ScansService) GetAllScans() ([]dto.GetAllScansResponse, error) {
 			ScanDate:    scan.ScanDate.Format("2006-01-02"),
 			Status:      scan.Status,
 			S3ResultURL: scan.S3ResultURL,
+			ScanTook:    scan.ScanTook,
 		})
 	}
 
@@ -265,7 +266,7 @@ func (s *ScansService) ScheduleScan(req *dto.ScheduleScanRequest) error {
 		scheduledScanModel := models.ScheduleScan{
 			ID:            primitive.NewObjectID(),
 			DomainIds:     domainsObjectIds,
-			TemplatesIDs:  templatesObjectIds,
+			TemplatesIDs: templatesObjectIds,
 			ScanAll:       req.ScanAll,
 			ScheduledDate: convertedStartScanToTimeFormat,
 		}
@@ -414,6 +415,7 @@ func (s *ScansService) GetScansByMultiScanId(multiScanId string) (*dto.GetScansB
 			Status:      scan.Status,
 			Error:       errorStr,
 			S3ResultURL: scan.S3ResultURL,
+			ScanTook:    scan.ScanTook,
 		})
 	}
 
