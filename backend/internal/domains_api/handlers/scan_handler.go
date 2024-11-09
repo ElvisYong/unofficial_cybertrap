@@ -30,6 +30,7 @@ func NewScansHandler(r *chi.Mux, service s.ScansService) {
 		r.Get("/schedule", handler.GetAllScheduledScans)
 		r.Post("/schedule", handler.ScheduleScan)
 		r.Delete("/schedule", handler.DeleteScheduledScanRequest)
+		r.Get("/multiscan/{multiScanId}", handler.GetScansByMultiScanId)
 	})
 }
 
@@ -46,6 +47,8 @@ func (h *ScansHandler) GetAllScans(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(scans)
 	w.WriteHeader(http.StatusOK)
 }
+
+
 
 func (h *ScansHandler) ScanAllDomains(w http.ResponseWriter, r *http.Request) {
 	err := h.ScansService.ScanAllDomains()
@@ -167,4 +170,21 @@ func (h *ScansHandler) GetAllMultiScans(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(multiScans)
 	w.WriteHeader(http.StatusOK)
+}
+
+func (h *ScansHandler) GetScansByMultiScanId(w http.ResponseWriter, r *http.Request) {
+	multiScanId := chi.URLParam(r, "multiScanId")
+	if multiScanId == "" {
+		http.Error(w, "Missing multiScanId parameter", http.StatusBadRequest)
+		return
+	}
+
+	response, err := h.ScansService.GetScansByMultiScanId(multiScanId)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }

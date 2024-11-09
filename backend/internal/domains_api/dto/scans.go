@@ -8,7 +8,6 @@ type ScanDomainRequest struct {
 }
 
 type ScheduleScanRequest struct {
-	Id            string   `schema:"id"`
 	DomainIds     []string `schema:"domainIds"`
 	TemplateIds   []string `schema:"templateIds"`
 	ScanAll       bool     `schema:"scanAll"`
@@ -46,4 +45,14 @@ type GetAllMultiScansResponse struct {
 	CompletedScans int      `json:"completedScans"`
 	FailedScans    int      `json:"failedScans"`
 	Status         string   `json:"status"`
+}
+
+type GetScansByMultiScanIdResponse struct {
+	MultiScanID    string                `json:"multiScanId"`
+	Name           string                `json:"name"`
+	Status         string                `json:"status"`
+	TotalScans     int                   `json:"totalScans"`
+	CompletedScans int                   `json:"completedScans"`
+	FailedScans    int                   `json:"failedScans"`
+	Scans          []GetAllScansResponse `json:"scans"`
 }

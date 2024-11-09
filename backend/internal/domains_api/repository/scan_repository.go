@@ -7,6 +7,7 @@ import (
 	"github.com/shannevie/unofficial_cybertrap/backend/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type ScansRepository struct {
@@ -88,4 +89,24 @@ func (r *ScansRepository) GetAllMultiScans() ([]models.MultiScan, error) {
 	}
 
 	return multiScans, nil
+}
+
+func (r *ScansRepository) GetScansByIds(scanIds []primitive.ObjectID) ([]models.Scan, error) {
+	collection := r.mongoClient.Database(r.mongoDbName).Collection(r.collectionName)
+	filter := bson.M{"_id": bson.M{"$in": scanIds}}
+	
+	cursor, err := collection.Find(context.Background(), filter)
+	if err != nil {
+		log.Error().Err(err).Msg("Error fetching scans from MongoDB")
+		return nil, err
+	}
+	defer cursor.Close(context.Background())
+
+	var scans []models.Scan
+	if err = cursor.All(context.Background(), &scans); err != nil {
+		log.Error().Err(err).Msg("Error decoding scans from cursor")
+		return nil, err
+	}
+
+	return scans, nil
 }

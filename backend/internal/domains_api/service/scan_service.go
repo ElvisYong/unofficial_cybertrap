@@ -371,3 +371,62 @@ func (s *ScansService) GetAllMultiScans() ([]dto.GetAllMultiScansResponse, error
 
 	return multiScansResponse, nil
 }
+
+func (s *ScansService) GetScansByMultiScanId(multiScanId string) (*dto.GetScansByMultiScanIdResponse, error) {
+	// Get multi scan details from multi scan repository
+	multiScan, err := s.multiScanRepo.GetMultiScanById(multiScanId)
+	if err != nil {
+		log.Error().Err(err).Str("multiScanId", multiScanId).Msg("Error fetching multi scan")
+		return nil, err
+	}
+
+	// Get associated scans from scans repository
+	scans, err := s.scansRepo.GetScansByIds(multiScan.ScanIDs)
+	if err != nil {
+		log.Error().Err(err).Str("multiScanId", multiScanId).Msg("Error fetching associated scans")
+		return nil, err
+	}
+
+	// Convert scans to response DTOs
+	scanResponses := make([]dto.GetAllScansResponse, 0)
+	for _, scan := range scans {
+		templateIds := make([]string, 0)
+		for _, templateId := range scan.TemplateIDs {
+			templateIds = append(templateIds, templateId.Hex())
+		}
+
+		// Convert the error interface{} to string safely
+		var errorStr string
+		if scan.Error != nil {
+			if err, ok := scan.Error.(string); ok {
+				errorStr = err
+			} else {
+				errorStr = fmt.Sprintf("%v", scan.Error)
+			}
+		}
+
+		scanResponses = append(scanResponses, dto.GetAllScansResponse{
+			ID:          scan.ID.Hex(),
+			DomainId:    scan.DomainId.Hex(),
+			Domain:      scan.Domain,
+			TemplateIds: templateIds,
+			ScanDate:    scan.ScanDate.Format("2006-01-02"),
+			Status:      scan.Status,
+			Error:       errorStr,
+			S3ResultURL: scan.S3ResultURL,
+		})
+	}
+
+	// Create complete response
+	response := &dto.GetScansByMultiScanIdResponse{
+		MultiScanID:    multiScan.ID.Hex(),
+		Name:           multiScan.Name,
+		Status:         multiScan.Status,
+		TotalScans:     multiScan.TotalScans,
+		CompletedScans: len(multiScan.CompletedScans),
+		FailedScans:    len(multiScan.FailedScans),
+		Scans:          scanResponses,
+	}
+
+	return response, nil
+}

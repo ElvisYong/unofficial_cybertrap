@@ -2,11 +2,13 @@ package repository
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/rs/zerolog/log"
 	"github.com/shannevie/unofficial_cybertrap/backend/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type MultiScanRepository struct {
@@ -54,4 +56,25 @@ func (r *MultiScanRepository) CreateMultiScan(scan models.MultiScan) error {
 
 	return nil
 
+}
+
+func (r *MultiScanRepository) GetMultiScanById(multiScanId string) (*models.MultiScan, error) {
+	objectID, err := primitive.ObjectIDFromHex(multiScanId)
+	if err != nil {
+		log.Error().Err(err).Msg("Error converting multiScanId to ObjectID")
+		return nil, err
+	}
+
+	collection := r.mongoClient.Database(r.mongoDbName).Collection(r.collectionName)
+	var multiScan models.MultiScan
+	err = collection.FindOne(context.Background(), bson.M{"_id": objectID}).Decode(&multiScan)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, fmt.Errorf("multiscan not found")
+		}
+		log.Error().Err(err).Msg("Error fetching multi-scan from MongoDB")
+		return nil, err
+	}
+
+	return &multiScan, nil
 }
