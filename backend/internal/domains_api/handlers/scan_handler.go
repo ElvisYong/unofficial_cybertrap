@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi"
-	"github.com/gorilla/schema"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"github.com/shannevie/unofficial_cybertrap/backend/internal/domains_api/dto"
@@ -29,7 +28,7 @@ func NewScansHandler(r *chi.Mux, service s.ScansService) {
 		r.Post("/all", handler.ScanAllDomains)
 		r.Get("/schedule", handler.GetAllScheduledScans)
 		r.Post("/schedule", handler.ScheduleScan)
-		r.Delete("/schedule", handler.DeleteScheduledScanRequest)
+		r.Delete("/schedule/{id}", handler.DeleteScheduledScanRequest)
 		r.Get("/multiscan/{multiScanId}", handler.GetScansByMultiScanId)
 	})
 }
@@ -47,8 +46,6 @@ func (h *ScansHandler) GetAllScans(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(scans)
 	w.WriteHeader(http.StatusOK)
 }
-
-
 
 func (h *ScansHandler) ScanAllDomains(w http.ResponseWriter, r *http.Request) {
 	err := h.ScansService.ScanAllDomains()
@@ -142,14 +139,13 @@ func (h *ScansHandler) ScheduleScan(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ScansHandler) DeleteScheduledScanRequest(w http.ResponseWriter, r *http.Request) {
-	req := &dto.DeleteScheduledScanRequest{}
-
-	if err := schema.NewDecoder().Decode(req, r.URL.Query()); err != nil {
-		http.Error(w, "Invalid query parameters", http.StatusBadRequest)
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		http.Error(w, "Missing ID parameter", http.StatusBadRequest)
 		return
 	}
 
-	err := h.ScansService.DeleteScheduledScanRequest(req.ID)
+	err := h.ScansService.DeleteScheduledScanRequest(id)
 	if err != nil {
 		http.Error(w, "Failed to delete scheduled scan", http.StatusInternalServerError)
 		return

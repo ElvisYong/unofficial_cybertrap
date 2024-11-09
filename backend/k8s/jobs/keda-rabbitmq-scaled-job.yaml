@@ -1,0 +1,95 @@
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: nuclei-scanner-job-trigger
+  namespace: default
+spec:
+  secretTargetRef:
+    - parameter: host
+      name: rabbitmq-secret
+      key: uri
+    - parameter: tls
+      name: rabbitmq-secret
+      key: tls
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledJob
+metadata:
+  name: nuclei-scanner-job
+  namespace: default
+  labels:
+    app: nuclei-scanner-job
+spec:
+  jobTargetRef:
+    parallelism: 1
+    completions: 1
+    backoffLimit: 4
+    template:
+      metadata:
+        labels:
+          app: nuclei-scanner-job
+      spec:
+        nodeSelector:
+          kubernetes.io/arch: arm64
+        containers:
+        - name: nuclei-scanner
+          image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:nuclei-scanner-v0.1.9
+          command: ["/bin/nuclei_scanner"]
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1024Mi"
+          env:
+          - name: MAX_CONCURRENT_SCANS
+            value: "1"
+          - name: DEBUG
+            value: "true"
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: aws-secret
+                key: access-key-id
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: aws-secret
+                key: secret-access-key
+          - name: SCAN_RESULTS_BUCKET_NAME
+            value: "cybertrap-scan-results"
+          - name: TEMPLATES_BUCKET_NAME
+            value: "cybertrap-templates-bucket"
+          - name: MONGO_DB_URI
+            valueFrom:
+              secretKeyRef:
+                name: mongodb-secret
+                key: uri
+          - name: MONGO_DB_NAME
+            value: "cybertrap"
+          - name: RABBIT_MQ_URI
+            valueFrom:
+              secretKeyRef:
+                name: rabbitmq-secret
+                key: uri
+        restartPolicy: Never
+  pollingInterval: 30
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 5
+  minReplicaCount: 0
+  maxReplicaCount: 100
+  scalingStrategy:
+    strategy: "accurate"
+    pendingPodConditions:
+      - "Ready"
+      - "PodScheduled"
+  triggers:
+  - type: rabbitmq
+    metadata:
+      protocol: amqp
+      queueName: nuclei_scan_queue
+      mode: QueueLength
+      value: "1"
+    authenticationRef:
+      name: nuclei-scanner-job-trigger 

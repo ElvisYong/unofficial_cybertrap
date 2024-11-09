@@ -14,10 +14,6 @@ type ScheduleScanRequest struct {
 	ScheduledDate string   `schema:"scheduledDate"`
 }
 
-type DeleteScheduledScanRequest struct {
-	ID string `schema:"ID"`
-}
-
 type ScheduleScanResponse struct {
 	ID            string                 `json:"id"`
 	Domains       []GetDomainResponse    `json:"domains"`
