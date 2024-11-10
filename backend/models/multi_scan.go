@@ -15,4 +15,5 @@ type MultiScan struct {
 	FailedScans    []primitive.ObjectID `bson:"failed_scans"`
 	Status         string               `bson:"status"` // We will only cater for "in-progress" and "completed"
 	ScanDate       time.Time            `bson:"scan_date,omitempty"`
+	ScanTook       int64                `bson:"scan_took,omitempty"` // Duration in milliseconds
 }

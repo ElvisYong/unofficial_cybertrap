@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -31,6 +32,31 @@ func NewMongoHelper(client *mongo.Client, database string) *MongoHelper {
 	}
 }
 
+func NewMongoClient(ctx context.Context, uri string) (*mongo.Client, error) {
+	clientOpts := options.Client().
+		ApplyURI(uri).
+		SetMaxPoolSize(5).
+		SetMinPoolSize(1).
+		SetMaxConnecting(2).
+		SetRetryReads(true).
+		SetRetryWrites(true).
+		SetTimeout(10 * time.Second)
+
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	client, err := mongo.Connect(ctx, clientOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to MongoDB: %w", err)
+	}
+
+	if err = client.Ping(ctx, nil); err != nil {
+		return nil, fmt.Errorf("failed to ping MongoDB: %w", err)
+	}
+
+	return client, nil
+}
+
 func (r *MongoHelper) InsertScan(ctx context.Context, scan models.Scan) (primitive.ObjectID, error) {
 	collection := r.client.Database(r.database).Collection(ScansCollection)
 	scan.ScanDate = time.Now()
@@ -45,10 +71,9 @@ func (r *MongoHelper) InsertScan(ctx context.Context, scan models.Scan) (primiti
 	return result.InsertedID.(primitive.ObjectID), nil
 }
 
-// UpdateScanResult overwrites the scan model with the new scan result
+// UpdateScanResult updates the scan model with the new scan result and optional duration
 func (r *MongoHelper) UpdateScanResult(ctx context.Context, scan models.Scan) error {
 	collection := r.client.Database(r.database).Collection(ScansCollection)
-
 	filter := bson.M{"_id": scan.ID}
 
 	// Convert the entire scan object to a BSON document
@@ -56,11 +81,7 @@ func (r *MongoHelper) UpdateScanResult(ctx context.Context, scan models.Scan) er
 		"$set": scan,
 	}
 
-	log.Info().Msgf("Update scan update: %+v", update)
-
-	opts := options.Update().SetUpsert(false)
-
-	_, err := collection.UpdateOne(ctx, filter, update, opts)
+	_, err := collection.UpdateOne(ctx, filter, update)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to update scan result")
 		return err
@@ -69,16 +90,24 @@ func (r *MongoHelper) UpdateScanResult(ctx context.Context, scan models.Scan) er
 	return nil
 }
 
-func (r *MongoHelper) UpdateScanStatus(ctx context.Context, scanID primitive.ObjectID, status string) error {
+func (r *MongoHelper) UpdateScanStatus(ctx context.Context, scanID primitive.ObjectID, status string, errorInfo interface{}) error {
 	collection := r.client.Database(r.database).Collection(ScansCollection)
 	filter := bson.M{"_id": scanID}
-	update := bson.M{"$set": bson.M{
-		"status": status,
-	}}
+	update := bson.M{
+		"$set": bson.M{
+			"status": status,
+			"error":  errorInfo,
+		},
+	}
 
 	_, err := collection.UpdateOne(ctx, filter, update)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to update scan status")
+		log.Error().
+			Err(err).
+			Str("scanID", scanID.Hex()).
+			Str("status", status).
+			Interface("errorInfo", errorInfo).
+			Msg("Failed to update scan status")
 		return err
 	}
 
@@ -157,4 +186,98 @@ func (r *MongoHelper) FindMultiScanByID(ctx context.Context, multiScanId primiti
 	}
 
 	return multiScan, nil
+}
+
+// Single source of truth for all MongoDB operations
+func (mh *MongoHelper) UpdateScanError(ctx context.Context, scanID primitive.ObjectID, status string, errorInfo interface{}, duration int64) error {
+	collection := mh.client.Database(mh.database).Collection(ScansCollection)
+
+	update := bson.M{
+		"$set": bson.M{
+			"status":    status,
+			"error":     errorInfo,
+			"scan_took": duration,
+		},
+	}
+
+	_, err := collection.UpdateOne(ctx, bson.M{"_id": scanID}, update)
+	if err != nil {
+		log.Error().Err(err).
+			Str("scanID", scanID.Hex()).
+			Str("status", status).
+			Interface("errorInfo", errorInfo).
+			Int64("duration", duration).
+			Msg("Failed to update scan error status")
+	}
+	return err
+}
+
+func (mh *MongoHelper) UpdateScanStartTime(ctx context.Context, scanID primitive.ObjectID, startTime time.Time) error {
+	collection := mh.client.Database(mh.database).Collection(ScansCollection)
+
+	update := bson.M{
+		"$set": bson.M{
+			"scan_date": startTime,
+			"status":    "in-progress",
+		},
+	}
+
+	_, err := collection.UpdateOne(ctx, bson.M{"_id": scanID}, update)
+	return err
+}
+
+func (mh *MongoHelper) UpdateMultiScanCompletion(ctx context.Context, multiScanID primitive.ObjectID, status string, duration int64) error {
+	collection := mh.client.Database(mh.database).Collection(MultiScansCollection)
+
+	update := bson.M{
+		"$set": bson.M{
+			"status":    status,
+			"scan_took": duration,
+		},
+	}
+
+	_, err := collection.UpdateOne(ctx, bson.M{"_id": multiScanID}, update)
+	if err != nil {
+		log.Error().Err(err).Msg("Error updating multi-scan completion in MongoDB")
+		return err
+	}
+
+	return nil
+}
+
+func (mh *MongoHelper) UpdateMultiScanTiming(ctx context.Context, multiScanID primitive.ObjectID, status string, duration int64) error {
+	collection := mh.client.Database(mh.database).Collection(MultiScansCollection)
+
+	update := bson.M{
+		"$set": bson.M{
+			"status":    status,
+			"scan_took": duration,
+		},
+	}
+
+	_, err := collection.UpdateOne(ctx, bson.M{"_id": multiScanID}, update)
+	return err
+}
+
+func (mh *MongoHelper) UpdateScanWithDuration(ctx context.Context, scanID primitive.ObjectID, status string, duration int64) error {
+	collection := mh.client.Database(mh.database).Collection(ScansCollection)
+
+	update := bson.M{
+		"$set": bson.M{
+			"status":    status,
+			"scan_took": duration,
+		},
+	}
+
+	_, err := collection.UpdateOne(ctx, bson.M{"_id": scanID}, update)
+	if err != nil {
+		log.Error().Err(err).
+			Str("scanID", scanID.Hex()).
+			Str("status", status).
+			Int64("duration", duration).
+			Msg("Failed to update scan duration")
+		return err
+	}
+
+	return nil
 }

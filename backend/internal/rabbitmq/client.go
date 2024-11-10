@@ -160,14 +160,21 @@ func (r *RabbitMQClient) Get() (*amqp091.Delivery, bool, error) {
 	}
 
 	msg, ok, err := r.channel.Get(
-		"nuclei_scan_queue", // queue
-		false,               // auto-ack
+		"nuclei_scan_queue",
+		false, // auto-ack
 	)
+	
+	// If there's no message, return immediately without error
+	if !ok {
+		return nil, false, nil
+	}
+
+	// Only return error if there actually was one
 	if err != nil {
-		log.Logger.Error().Err(err).Msg("Failed to get message from queue")
 		return nil, false, err
 	}
-	return &msg, ok, nil
+
+	return &msg, true, nil
 }
 
 func (r *RabbitMQClient) Close() {
