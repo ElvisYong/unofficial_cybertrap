@@ -13,9 +13,6 @@ fi
 echo "Deleting all nuclei-scanner jobs..."
 kubectl delete jobs -l app=nuclei-scanner-job --ignore-not-found --force
 
-echo "Deleting nuclei-scanner job..."
-kubectl delete -f "${SCRIPT_DIR}/nuclei-scanner-job.yaml" --ignore-not-found --force
-
 echo "Deleting KEDA ScaledJob..."
 kubectl delete -f "${SCRIPT_DIR}/keda-rabbitmq-scaled-job.yaml" --ignore-not-found --force
 
@@ -24,8 +21,5 @@ sleep 5
 
 echo "Reapplying KEDA ScaledJob..."
 kubectl apply -f "${SCRIPT_DIR}/keda-rabbitmq-scaled-job.yaml"
-
-echo "Reapplying nuclei-scanner job..."
-kubectl apply -f "${SCRIPT_DIR}/nuclei-scanner-job.yaml"
 
 echo "Done!" 
