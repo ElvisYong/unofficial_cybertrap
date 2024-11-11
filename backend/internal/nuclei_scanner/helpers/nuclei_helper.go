@@ -54,6 +54,13 @@ func (nh *NucleiHelper) ScanWithNuclei(
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutDuration)
 	defer cancel()
 
+	// Update multi-scan status to in-progress at the start
+	if err := nh.mongoHelper.UpdateMultiScanStatus(ctx, multiScanId, "in-progress", nil, nil); err != nil {
+		errorMsg := formatErrorDetails(err, "Failed to update multi-scan status to in-progress")
+		log.Error().Err(err).Msg(errorMsg)
+		return fmt.Errorf(errorMsg)
+	}
+
 	// Update scan with start time
 	if err := nh.mongoHelper.UpdateScanStartTime(ctx, scanID, scanStartTime); err != nil {
 		errorMsg := formatErrorDetails(err, "Failed to update scan start time")
@@ -178,25 +185,8 @@ func (nh *NucleiHelper) ScanWithNuclei(
 		}
 
 		scanResultUrls = append(scanResultUrls, s3URL)
-
-		// Write the result to a local temporary file
-		// tempDir := os.TempDir()
-		// tempFile, err := os.CreateTemp(tempDir, "scan_result_.json")
-		// if err != nil {
-		// 	log.Error().Err(err).Msg("Failed to create temporary file")
-		// 	return
-		// }
-		// defer tempFile.Close()
-
-		// _, err = tempFile.Write(resultJSON)
-		// if err != nil {
-		// 	log.Error().Err(err).Msg("Failed to write result to temporary file")
-		// 	return
-		// }
-
-		// log.Info().Str("file", tempFile.Name()).Msg("Scan result written to temporary file")
-
 	}
+
 	// Update the scan result with the s3 url
 	scan := models.Scan{
 		ID:          scanID,
@@ -223,9 +213,8 @@ func (nh *NucleiHelper) ScanWithNuclei(
 		return fmt.Errorf("failed to update scan result: %w", err)
 	}
 
-	// First, update the completed scans for this multi-scan
-	log.Info().Msg("Updating multi scan status to completed")
-	err = nh.mongoHelper.UpdateMultiScanStatus(context.Background(), multiScanId, "", &scanID, nil)
+	log.Info().Msg("Adding scan to completed scans in multi-scan")
+	err = nh.mongoHelper.UpdateMultiScanStatus(context.Background(), multiScanId, "in-progress", &scanID, nil)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to update multi scan status")
 		return fmt.Errorf("failed to update multi scan status: %w", err)
@@ -283,7 +272,7 @@ func (nh *NucleiHelper) handleScanError(ctx context.Context, scanID, multiScanId
 	}
 
 	// Update multi-scan status
-	if err := nh.mongoHelper.UpdateMultiScanStatus(ctx, multiScanId, "", nil, &scanID); err != nil {
+	if err := nh.mongoHelper.UpdateMultiScanStatus(ctx, multiScanId, "failed", nil, &scanID); err != nil {
 		log.Error().Err(err).
 			Str("multiScanId", multiScanId.Hex()).
 			Msg("Failed to update multi scan failed scans")

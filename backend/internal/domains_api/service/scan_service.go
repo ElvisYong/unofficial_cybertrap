@@ -65,6 +65,23 @@ func (s *ScansService) GetAllScans() ([]dto.GetAllScansResponse, error) {
 func (s *ScansService) ScanDomains(domainIds []primitive.ObjectID, templateIds []primitive.ObjectID, scanAllNuclei bool) error {
 	multiScanId := primitive.NewObjectID()
 
+	// Create and insert the multiscan object first
+	multiScan := models.MultiScan{
+		ID:             multiScanId,
+		Name:           fmt.Sprintf("Scan %s", multiScanId.Hex()),
+		TotalScans:     len(domainIds),
+		CompletedScans: make([]primitive.ObjectID, 0),
+		FailedScans:    make([]primitive.ObjectID, 0),
+		Status:         "pending",
+		ScanDate:       time.Now(),
+	}
+
+	err := s.multiScanRepo.CreateMultiScan(multiScan)
+	if err != nil {
+		log.Error().Err(err).Msg("Error inserting multiscan into the database")
+		return err
+	}
+
 	// Get all domains at once
 	domains, err := s.domainsRepo.GetDomainsByIDs(domainIds)
 	if err != nil {
@@ -266,7 +283,7 @@ func (s *ScansService) ScheduleScan(req *dto.ScheduleScanRequest) error {
 		scheduledScanModel := models.ScheduleScan{
 			ID:            primitive.NewObjectID(),
 			DomainIds:     domainsObjectIds,
-			TemplatesIDs: templatesObjectIds,
+			TemplatesIDs:  templatesObjectIds,
 			ScanAll:       req.ScanAll,
 			ScheduledDate: convertedStartScanToTimeFormat,
 		}
