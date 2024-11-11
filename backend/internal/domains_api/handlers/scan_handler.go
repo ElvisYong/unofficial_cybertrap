@@ -23,15 +23,18 @@ func NewScansHandler(r *chi.Mux, service s.ScansService) {
 
 	r.Route("/v1/scans", func(r chi.Router) {
 		r.Get("/", handler.GetAllScans)
+		r.Get("/{id}", handler.GetScanById)
 		r.Get("/multi", handler.GetAllMultiScans)
+		r.Get("/multiscan/{multiScanId}", handler.GetScansByMultiScanId)
+		r.Get("/schedule", handler.GetAllScheduledScans)
 		r.Post("/", handler.ScanDomains)
 		r.Post("/all", handler.ScanAllDomains)
-		r.Get("/schedule", handler.GetAllScheduledScans)
 		r.Post("/schedule", handler.ScheduleScan)
 		r.Delete("/schedule/{id}", handler.DeleteScheduledScanRequest)
-		r.Get("/multiscan/{multiScanId}", handler.GetScansByMultiScanId)
 	})
 }
+
+
 
 func (h *ScansHandler) GetAllScans(w http.ResponseWriter, r *http.Request) {
 	scans, err := h.ScansService.GetAllScans()
@@ -183,4 +186,21 @@ func (h *ScansHandler) GetScansByMultiScanId(w http.ResponseWriter, r *http.Requ
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+func (h *ScansHandler) GetScanById(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		http.Error(w, "Missing ID parameter", http.StatusBadRequest)
+		return
+	}
+
+	scan, err := h.ScansService.GetScanById(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(scan)
 }

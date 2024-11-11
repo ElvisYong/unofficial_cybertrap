@@ -449,3 +449,36 @@ func (s *ScansService) GetScansByMultiScanId(multiScanId string) (*dto.GetScansB
 
 	return response, nil
 }
+
+func (s *ScansService) GetScanById(scanId string) (*dto.GetScanResponse, error) {
+	objectId, err := primitive.ObjectIDFromHex(scanId)
+	if err != nil {
+		log.Error().Err(err).Str("scanId", scanId).Msg("Invalid scan ID")
+		return nil, err
+	}
+
+	scan, err := s.scansRepo.GetScanById(objectId)
+	if err != nil {
+		log.Error().Err(err).Str("scanId", scanId).Msg("Error fetching scan")
+		return nil, err
+	}
+
+	templateIds := make([]string, 0)
+	for _, templateId := range scan.TemplateIDs {
+		templateIds = append(templateIds, templateId.Hex())
+	}
+
+	response := &dto.GetScanResponse{
+		ID:          scan.ID.Hex(),
+		DomainId:    scan.DomainId.Hex(),
+		Domain:      scan.Domain,
+		TemplateIds: templateIds,
+		ScanDate:    scan.ScanDate.Format("2006-01-02"),
+		Status:      scan.Status,
+		Error:       fmt.Sprintf("%v", scan.Error),
+		S3ResultURL: scan.S3ResultURL,
+		ScanTook:    scan.ScanTook,
+	}
+
+	return response, nil
+}

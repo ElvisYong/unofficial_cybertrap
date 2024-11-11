@@ -129,3 +129,17 @@ func (r *ScansRepository) UpdateScanWithDuration(ctx context.Context, scanID pri
 	
 	return nil
 }
+
+func (r *ScansRepository) GetScanById(scanId primitive.ObjectID) (*models.Scan, error) {
+	collection := r.mongoClient.Database(r.mongoDbName).Collection(r.collectionName)
+	filter := bson.M{"_id": scanId}
+
+	var scan models.Scan
+	err := collection.FindOne(context.Background(), filter).Decode(&scan)
+	if err != nil {
+		log.Error().Err(err).Msg("Error fetching scan from MongoDB")
+		return nil, err
+	}
+
+	return &scan, nil
+}

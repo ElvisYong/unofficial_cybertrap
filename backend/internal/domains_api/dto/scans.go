@@ -53,3 +53,15 @@ type GetScansByMultiScanIdResponse struct {
 	FailedScans    int                   `json:"failedScans"`
 	Scans          []GetAllScansResponse `json:"scans"`
 }
+
+type GetScanResponse struct {
+	ID          string   `json:"id"`
+	DomainId    string   `json:"domainId"`
+	Domain      string   `json:"domain"`
+	TemplateIds []string `json:"templateIds"`
+	ScanDate    string   `json:"scanDate"`
+	Status      string   `json:"status"`
+	Error       string   `json:"error,omitempty"`
+	S3ResultURL []string `json:"s3ResultUrl,omitempty"`
+	ScanTook    int64    `json:"scanTook"`
+}
