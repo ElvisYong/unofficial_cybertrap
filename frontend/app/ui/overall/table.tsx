@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { BASE_URL } from '@/data';
 
 interface ScanResult {
   id: string
@@ -11,26 +12,36 @@ interface ScanResult {
   datetime: string
 }
 
-const mockData: ScanResult[] = [
-    { id: '1', name: 'Security Scan 1', status: 'Pass', datetime: '2024-10-15T10:30:00Z' },
-    { id: '2', name: 'Performance Test', status: 'Fail', datetime: '2024-10-16T14:45:00Z' },
-    { id: '3', name: 'Vulnerability Scan', status: 'Pass', datetime: '2024-10-17T09:15:00Z' },
-    { id: '4', name: 'Compliance Check', status: 'Fail', datetime: '2024-10-18T16:20:00Z' },
-    { id: '5', name: 'Network Scan', status: 'Pass', datetime: '2024-10-19T11:00:00Z' },
-    { id: '6', name: 'Database Audit', status: 'Fail', datetime: '2024-10-20T08:00:00Z' },
-    { id: '7', name: 'Web App Scan', status: 'Pass', datetime: '2024-10-21T12:30:00Z' },
-    { id: '8', name: 'Server Check', status: 'Pass', datetime: '2024-10-22T15:00:00Z' },
-  ];
-
 export default function SimplifiedScanTable() {
-  const [scans, setScans] = useState<ScanResult[]>(mockData)
+  const [scans, setScans] = useState<ScanResult[]>([])
   const [filters, setFilters] = useState({
     name: '',
     status: 'all'
   })
 
   useEffect(() => {
-    const filteredScans = mockData.filter(scan => {
+    // Fetch data from the endpoint when the component mounts
+    const fetchScans = async () => {
+      try {
+        const response = await fetch(`${BASE_URL}/scan/multiscan`)
+        if (response.ok) {
+          const data: ScanResult[] = await response.json()
+          console.log(data)
+          setScans(data)
+        } else {
+          console.error('Failed to fetch scan data')
+        }
+      } catch (error) {
+        console.error('Error fetching scan data:', error)
+      }
+    }
+
+    fetchScans()
+  }, [])
+
+  useEffect(() => {
+    // Filter scans based on user input
+    const filteredScans = scans.filter(scan => {
       return (
         scan.name.toLowerCase().includes(filters.name.toLowerCase()) &&
         (filters.status === 'all' || scan.status === filters.status)
