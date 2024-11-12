@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	nuclei "github.com/projectdiscovery/nuclei/v3/lib"
@@ -38,6 +39,7 @@ func formatErrorDetails(err error, context string) string {
 }
 
 func (nh *NucleiHelper) ScanWithNuclei(
+	ctx context.Context,
 	multiScanId primitive.ObjectID,
 	scanID primitive.ObjectID,
 	domain string,
@@ -50,9 +52,24 @@ func (nh *NucleiHelper) ScanWithNuclei(
 	scanStartTime := time.Now()
 	timeoutDuration := 2 * time.Hour
 
-	// Create context with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), timeoutDuration)
+	// Create a child context with timeout
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Hour)
 	defer cancel()
+
+	// Create cleanup channel
+	done := make(chan struct{})
+	defer close(done)
+
+	// Handle context cancellation
+	go func() {
+		select {
+		case <-ctx.Done():
+			errorMsg := formatErrorDetails(ctx.Err(), "Scan interrupted")
+			nh.handleScanError(context.Background(), scanID, multiScanId, errorMsg, time.Now())
+		case <-done:
+			return
+		}
+	}()
 
 	// Update multi-scan status to in-progress at the start
 	if err := nh.mongoHelper.UpdateMultiScanStatus(ctx, multiScanId, "in-progress", nil, nil); err != nil {
@@ -126,6 +143,11 @@ func (nh *NucleiHelper) ScanWithNuclei(
 		scanResults = append(scanResults, *event)
 	})
 
+	// Check context again after scan
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
 	// Check for timeout
 	if ctx.Err() == context.DeadlineExceeded {
 		errorMsg := formatErrorDetails(
@@ -154,8 +176,6 @@ func (nh *NucleiHelper) ScanWithNuclei(
 		return fmt.Errorf(errorMsg)
 	}
 	log.Info().Msg("Scan completed")
-
-	log.Info().Msgf("There are %d results", len(scanResults))
 
 	// Loop the scan results and parse them into a json
 	scanResultUrls := []string{}
@@ -244,9 +264,12 @@ func (nh *NucleiHelper) ScanWithNuclei(
 
 // Enhanced error handling function
 func (nh *NucleiHelper) handleScanError(ctx context.Context, scanID, multiScanId primitive.ObjectID, errorMsg string, startTime time.Time) {
+	// Create a new context with short timeout for cleanup
+	cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	duration := time.Since(startTime).Milliseconds()
 
-	// Create detailed error information
 	errorInfo := map[string]interface{}{
 		"message":   errorMsg,
 		"timestamp": time.Now(),
@@ -254,39 +277,37 @@ func (nh *NucleiHelper) handleScanError(ctx context.Context, scanID, multiScanId
 		"scanId":    scanID.Hex(),
 	}
 
-	// Use the consolidated MongoDB helper methods
-	if err := nh.mongoHelper.UpdateScanError(ctx, scanID, "failed", errorInfo, duration); err != nil {
-		log.Error().Err(err).
-			Str("scanID", scanID.Hex()).
-			Str("errorMsg", errorMsg).
-			Msg("Failed to update scan error status")
-	}
+	// Use WaitGroup to ensure all cleanup operations complete
+	var wg sync.WaitGroup
+	wg.Add(2)
 
-	// Handle multi-scan updates
-	multiScan, err := nh.mongoHelper.FindMultiScanByID(ctx, multiScanId)
-	if err != nil {
-		log.Error().Err(err).
-			Str("multiScanId", multiScanId.Hex()).
-			Msg("Failed to fetch multi scan")
-		return
-	}
+	// Update scan status
+	go func() {
+		defer wg.Done()
+		if err := nh.mongoHelper.UpdateScanError(cleanupCtx, scanID, "failed", errorInfo, duration); err != nil {
+			log.Error().Err(err).Str("scanID", scanID.Hex()).Msg("Failed to update scan error status")
+		}
+	}()
 
 	// Update multi-scan status
-	if err := nh.mongoHelper.UpdateMultiScanStatus(ctx, multiScanId, "failed", nil, &scanID); err != nil {
-		log.Error().Err(err).
-			Str("multiScanId", multiScanId.Hex()).
-			Msg("Failed to update multi scan failed scans")
-	}
-
-	// Check if this was the last scan
-	totalProcessed := len(multiScan.CompletedScans) + len(multiScan.FailedScans) + 1
-	if totalProcessed >= multiScan.TotalScans {
-		duration = time.Since(multiScan.ScanDate).Milliseconds()
-		if err := nh.mongoHelper.UpdateMultiScanCompletion(ctx, multiScanId, "failed", duration); err != nil {
-			log.Error().Err(err).
-				Str("multiScanId", multiScanId.Hex()).
-				Int64("duration", duration).
-				Msg("Failed to update multi scan completion")
+	go func() {
+		defer wg.Done()
+		if err := nh.mongoHelper.UpdateMultiScanStatus(cleanupCtx, multiScanId, "failed", nil, &scanID); err != nil {
+			log.Error().Err(err).Str("multiScanId", multiScanId.Hex()).Msg("Failed to update multi scan status")
 		}
+	}()
+
+	// Wait for cleanup with timeout
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		log.Info().Msg("Error handling completed successfully")
+	case <-cleanupCtx.Done():
+		log.Error().Msg("Error handling timed out")
 	}
 }

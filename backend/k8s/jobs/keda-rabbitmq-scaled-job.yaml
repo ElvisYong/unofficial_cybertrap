@@ -30,6 +30,7 @@ spec:
       spec:
         nodeSelector:
           kubernetes.io/arch: arm64
+        terminationGracePeriodSeconds: 30
         containers:
         - name: nuclei-scanner
           image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:nuclei-scanner-v0.1.15
@@ -72,6 +73,33 @@ spec:
               secretKeyRef:
                 name: rabbitmq-secret
                 key: uri
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 5"]
+          terminationMessagePolicy: FallbackToLogsOnError
+          livenessProbe:
+            exec:
+              command:
+              - cat
+              - /tmp/healthy
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          readinessProbe:
+            exec:
+              command:
+              - cat
+              - /tmp/ready
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          startupProbe:
+            exec:
+              command:
+              - cat
+              - /tmp/startup
+            initialDelaySeconds: 5
+            failureThreshold: 3
+            periodSeconds: 10
         restartPolicy: OnFailure
   pollingInterval: 30
   successfulJobsHistoryLimit: 5
@@ -91,4 +119,4 @@ spec:
       mode: QueueLength
       value: "1"
     authenticationRef:
-      name: nuclei-scanner-job-trigger 
+      name: nuclei-scanner-job-trigger

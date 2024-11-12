@@ -190,6 +190,11 @@ func (r *MongoHelper) FindMultiScanByID(ctx context.Context, multiScanId primiti
 
 // Single source of truth for all MongoDB operations
 func (mh *MongoHelper) UpdateScanError(ctx context.Context, scanID primitive.ObjectID, status string, errorInfo interface{}, duration int64) error {
+	// Create a new background context for error updates
+	// This ensures error updates complete even during shutdown
+	updateCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	collection := mh.client.Database(mh.database).Collection(ScansCollection)
 
 	update := bson.M{
@@ -200,7 +205,7 @@ func (mh *MongoHelper) UpdateScanError(ctx context.Context, scanID primitive.Obj
 		},
 	}
 
-	_, err := collection.UpdateOne(ctx, bson.M{"_id": scanID}, update)
+	_, err := collection.UpdateOne(updateCtx, bson.M{"_id": scanID}, update)
 	if err != nil {
 		log.Error().Err(err).
 			Str("scanID", scanID.Hex()).

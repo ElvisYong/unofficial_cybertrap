@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"time"
 
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
@@ -30,8 +32,50 @@ func formatErrorDetails(err error, context string) map[string]interface{} {
 }
 
 func main() {
-	ctx := context.Background()
+	// Create a cancellable context
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
+	// Setup signal handling
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+
+	// Create error channel for goroutine errors
+	errChan := make(chan error, 1)
+
+	// Start main processing in a goroutine
+	go func() {
+		errChan <- processScans(ctx)
+	}()
+
+	// Wait for either completion or signal
+	select {
+	case err := <-errChan:
+		if err != nil {
+			log.Error().Err(err).Msg("Scan processing failed")
+			os.Exit(1)
+		}
+	case sig := <-sigChan:
+		log.Info().Msgf("Received signal: %v", sig)
+		cancel() // Trigger graceful shutdown
+		// Wait for cleanup with timeout
+		cleanup := make(chan bool)
+		go func() {
+			// Wait for processing to finish
+			<-errChan
+			cleanup <- true
+		}()
+
+		select {
+		case <-cleanup:
+			log.Info().Msg("Graceful shutdown completed")
+		case <-time.After(30 * time.Second):
+			log.Warn().Msg("Graceful shutdown timed out")
+		}
+	}
+}
+
+func processScans(ctx context.Context) error {
 	// Initialize logger
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
@@ -46,24 +90,19 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to create RabbitMQ client")
 	}
+	defer rabbitClient.Close()
+	log.Info().Msg("RabbitMQ client initialized")
 
-	// Get message from queue
+	// Get message from queue (will automatically retry if needed)
 	msg, ok, err := rabbitClient.Get()
 	if err != nil {
-		rabbitClient.Close()
-		log.Error().Err(err).Msg("Failed to get message from RabbitMQ")
+		log.Fatal().Err(err).Msg("Failed to get message from RabbitMQ after all retries")
 		os.Exit(1)
 	}
 	if !ok {
-		rabbitClient.Close()
-		log.Info().Msg("No message available, exiting normally")
+		log.Info().Msg("No message available, exiting...")
 		os.Exit(0)
 	}
-
-	// Acknowledge message and close connection
-	msg.Ack(false)
-	rabbitClient.Close()
-	log.Info().Msg("RabbitMQ message acknowledged and connection closed")
 
 	// Parse the message
 	var scanMsg rabbitmq.ScanMessage
@@ -76,7 +115,7 @@ func main() {
 	mongoClient, err := helpers.NewMongoClient(ctx, config.MongoDbUri)
 	if err != nil {
 		log.Error().Err(err).Str("scanId", scanMsg.ScanId.Hex()).Msg("MongoDB initialization failed")
-		return
+		return err
 	}
 	defer mongoClient.Disconnect(ctx)
 
@@ -96,29 +135,32 @@ func main() {
 	)
 	if err != nil {
 		handleError(ctx, err, "Failed to load AWS config", scanMsg.ScanId, mongoHelper)
-		return
+		return err
 	}
 
 	s3Helper, err := helpers.NewS3Helper(awsCfg, config.TemplatesBucketName, config.ScanResultsBucketName)
 	if err != nil {
 		handleError(ctx, err, "Failed to initialize S3", scanMsg.ScanId, mongoHelper)
-		return
+		return err
 	}
 
 	// Create NucleiHelper
 	nh := helpers.NewNucleiHelper(s3Helper, mongoHelper)
 
+	// Acknowledge message
+	msg.Ack(false)
+
 	// Update scan status to in-progress
 	if err = mongoHelper.UpdateScanStartTime(ctx, scanMsg.ScanId, time.Now()); err != nil {
 		handleError(ctx, err, "Failed to update scan start time", scanMsg.ScanId, mongoHelper)
-		return
+		return err
 	}
 
 	// Setup template directory
 	templateDir := filepath.Join(os.TempDir(), "nuclei-templates")
 	if err := os.MkdirAll(templateDir, 0755); err != nil {
 		handleError(ctx, err, "Failed to create template directory", scanMsg.ScanId, mongoHelper)
-		return
+		return err
 	}
 	nuclei.DefaultConfig.TemplatesDirectory = templateDir
 
@@ -126,11 +168,12 @@ func main() {
 	templateFilePaths, err := downloadTemplates(ctx, templateDir, scanMsg.TemplateIds, mongoHelper, s3Helper)
 	if err != nil {
 		handleError(ctx, err, "Template processing failed", scanMsg.ScanId, mongoHelper)
-		return
+		return err
 	}
 
 	// Perform the scan
 	if err = nh.ScanWithNuclei(
+		ctx,
 		scanMsg.MultiScanId,
 		scanMsg.ScanId,
 		scanMsg.Domain,
@@ -141,7 +184,7 @@ func main() {
 		config.Debug,
 	); err != nil {
 		handleError(ctx, err, "Nuclei scan failed", scanMsg.ScanId, mongoHelper)
-		return
+		return err
 	}
 
 	log.Info().Msg("Scan completed successfully")
@@ -149,7 +192,7 @@ func main() {
 	if err := os.RemoveAll(templateDir); err != nil {
 		log.Error().Err(err).Msg("Failed to clean up template directory")
 	}
-	os.Exit(0)
+	return nil
 }
 
 func downloadTemplates(ctx context.Context, templateDir string, templateIds []primitive.ObjectID, mongoHelper *helpers.MongoHelper, s3Helper *helpers.S3Helper) ([]string, error) {
