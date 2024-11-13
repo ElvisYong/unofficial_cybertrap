@@ -13,13 +13,13 @@ import { useToast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 import { domainApi } from '@/api/domains';
 import { scanApi } from '@/api/scans';
+import toast from 'react-hot-toast';
 
 export default function Targets() : JSX.Element {
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [domains, setDomains] = useState<Domain[]>([]);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [isScanning, setIsScanning] = useState<boolean>(false);
-  const { toast } = useToast();
 
   const handleOpenModal = () => setIsModalOpen(true);
   const handleCloseModal = () => setIsModalOpen(false);
@@ -56,10 +56,7 @@ export default function Targets() : JSX.Element {
     
     try {
       await scanApi.scanAll(domainNames);
-      toast({
-        title: "Success",
-        description: "Scan initiated for all targets.",
-      });
+      toast.success("Scan initiated for all targets.");
     } catch (error) {
       console.error('Error initiating scan for all targets:', error);
       toast({
