@@ -114,7 +114,7 @@ func processScans(ctx context.Context) error {
 	// Initialize MongoDB
 	mongoClient, err := helpers.NewMongoClient(ctx, config.MongoDbUri)
 	if err != nil {
-		log.Error().Err(err).Str("scanId", scanMsg.ScanId.Hex()).Msg("MongoDB initialization failed")
+		handleError(ctx, err, "MongoDB initialization failed", scanMsg.ScanId, nil, config)
 		return err
 	}
 	defer mongoClient.Disconnect(ctx)
@@ -134,13 +134,13 @@ func processScans(ctx context.Context) error {
 		),
 	)
 	if err != nil {
-		handleError(ctx, err, "Failed to load AWS config", scanMsg.ScanId, mongoHelper)
+		handleError(ctx, err, "Failed to load AWS config", scanMsg.ScanId, mongoHelper, config)
 		return err
 	}
 
 	s3Helper, err := helpers.NewS3Helper(awsCfg, config.TemplatesBucketName, config.ScanResultsBucketName)
 	if err != nil {
-		handleError(ctx, err, "Failed to initialize S3", scanMsg.ScanId, mongoHelper)
+		handleError(ctx, err, "Failed to initialize S3", scanMsg.ScanId, mongoHelper, config)
 		return err
 	}
 
@@ -152,14 +152,14 @@ func processScans(ctx context.Context) error {
 
 	// Update scan status to in-progress
 	if err = mongoHelper.UpdateScanStartTime(ctx, scanMsg.ScanId, time.Now()); err != nil {
-		handleError(ctx, err, "Failed to update scan start time", scanMsg.ScanId, mongoHelper)
+		handleError(ctx, err, "Failed to update scan start time", scanMsg.ScanId, mongoHelper, config)
 		return err
 	}
 
 	// Setup template directory
 	templateDir := filepath.Join(os.TempDir(), "nuclei-templates")
 	if err := os.MkdirAll(templateDir, 0755); err != nil {
-		handleError(ctx, err, "Failed to create template directory", scanMsg.ScanId, mongoHelper)
+		handleError(ctx, err, "Failed to create template directory", scanMsg.ScanId, mongoHelper, config)
 		return err
 	}
 	nuclei.DefaultConfig.TemplatesDirectory = templateDir
@@ -167,7 +167,7 @@ func processScans(ctx context.Context) error {
 	// Download and process templates
 	templateFilePaths, err := downloadTemplates(ctx, templateDir, scanMsg.TemplateIds, mongoHelper, s3Helper)
 	if err != nil {
-		handleError(ctx, err, "Template processing failed", scanMsg.ScanId, mongoHelper)
+		handleError(ctx, err, "Template processing failed", scanMsg.ScanId, mongoHelper, config)
 		return err
 	}
 
@@ -183,11 +183,18 @@ func processScans(ctx context.Context) error {
 		scanMsg.ScanAllNuclei,
 		config.Debug,
 	); err != nil {
-		handleError(ctx, err, "Nuclei scan failed", scanMsg.ScanId, mongoHelper)
+		handleError(ctx, err, "Nuclei scan failed", scanMsg.ScanId, mongoHelper, config)
 		return err
 	}
 
 	log.Info().Msg("Scan completed successfully")
+
+	// Send Slack notification
+	slackMessage := fmt.Sprintf("Scan completed successfully for domain: %s", scanMsg.Domain)
+	if err := helpers.SendSlackNotification(config.SlackWebhookURL, slackMessage); err != nil {
+		log.Error().Err(err).Msg("Failed to send Slack notification")
+	}
+
 	// Clean up template directory
 	if err := os.RemoveAll(templateDir); err != nil {
 		log.Error().Err(err).Msg("Failed to clean up template directory")
@@ -248,7 +255,7 @@ func downloadTemplates(ctx context.Context, templateDir string, templateIds []pr
 	return templateFilePaths, nil
 }
 
-func handleError(ctx context.Context, err error, context string, scanID primitive.ObjectID, mongoHelper *helpers.MongoHelper) {
+func handleError(ctx context.Context, err error, context string, scanID primitive.ObjectID, mongoHelper *helpers.MongoHelper, config appConfig.NucleiConfig) {
 	errorDetails := map[string]interface{}{
 		"message":   err.Error(),
 		"context":   context,
@@ -261,10 +268,25 @@ func handleError(ctx context.Context, err error, context string, scanID primitiv
 		Interface("details", errorDetails).
 		Msg(context)
 
-	if updateErr := mongoHelper.UpdateScanStatus(ctx, scanID, "failed", errorDetails); updateErr != nil {
-		log.Error().
-			Err(updateErr).
-			Str("scanID", scanID.Hex()).
-			Msg("Failed to update scan error status")
+	// Send Slack notification for the error
+	slackMessage := fmt.Sprintf("Scan failed for scanID: %s\nContext: %s\nError: %s", scanID.Hex(), context, err.Error())
+	if slackErr := helpers.SendSlackNotification(config.SlackWebhookURL, slackMessage); slackErr != nil {
+		log.Error().Err(slackErr).Msg("Failed to send Slack notification for error")
+	}
+
+	// Check if mongoHelper is initialized before updating the scan status
+	if mongoHelper != nil {
+		if updateErr := mongoHelper.UpdateScanStatus(ctx, scanID, "failed", errorDetails); updateErr != nil {
+			log.Error().
+				Err(updateErr).
+				Str("scanID", scanID.Hex()).
+				Msg("Failed to update scan error status")
+		}
+	} else {
+		// Send Slack notification about the inability to update MongoDB
+		slackMessage := fmt.Sprintf("MongoHelper is not initialized. Unable to update scan status for scanID: %s", scanID.Hex())
+		if slackErr := helpers.SendSlackNotification(config.SlackWebhookURL, slackMessage); slackErr != nil {
+			log.Error().Err(slackErr).Msg("Failed to send Slack notification about MongoDB initialization error")
+		}
 	}
 }

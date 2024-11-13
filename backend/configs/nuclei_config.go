@@ -23,6 +23,9 @@ type NucleiConfig struct {
 
 	// AMQP
 	RabbitMqUri string `mapstructure:"RABBIT_MQ_URI"`
+
+	// Slack
+	SlackWebhookURL string `mapstructure:"SLACK_WEBHOOK_URL"`
 }
 
 func LoadNucleiConfig(path string) (NucleiConfig, error) {
