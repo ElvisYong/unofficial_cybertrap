@@ -92,14 +92,6 @@ spec:
               - /tmp/ready
             initialDelaySeconds: 5
             periodSeconds: 5
-          startupProbe:
-            exec:
-              command:
-              - cat
-              - /tmp/startup
-            initialDelaySeconds: 5
-            failureThreshold: 3
-            periodSeconds: 10
         restartPolicy: OnFailure
   pollingInterval: 30
   successfulJobsHistoryLimit: 5
