@@ -25,6 +25,11 @@ export const scanApi = {
     return response.data;
   },
 
+  getMultiScans: async (): Promise<Scan[]> => {
+    const response = await axiosInstance.get('/v1/scans/multi');
+    return response.data;
+  },
+
   scanDomains: async (domainIds: string[], templateIds: string[], scanAllNuclei: boolean = false): Promise<void> => {
     await axiosInstance.post('/v1/scans', {
       domainIds,

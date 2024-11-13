@@ -4,6 +4,7 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { BASE_URL } from '@/data';
+import { scanApi } from '@/api/scans';
 
 interface ScanResult {
   id: string
@@ -20,17 +21,10 @@ export default function SimplifiedScanTable() {
   })
 
   useEffect(() => {
-    // Fetch data from the endpoint when the component mounts
     const fetchScans = async () => {
       try {
-        const response = await fetch(`${BASE_URL}/scan/multiscan`)
-        if (response.ok) {
-          const data: ScanResult[] = await response.json()
-          console.log(data)
-          setScans(data)
-        } else {
-          console.error('Failed to fetch scan data')
-        }
+        const data = await scanApi.getMultiScans() // Use scanApi here
+        setScans(data)
       } catch (error) {
         console.error('Error fetching scan data:', error)
       }
