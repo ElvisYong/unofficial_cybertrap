@@ -13,14 +13,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Toaster } from "@/components/ui/toaster";
-import { useToast } from "@/hooks/use-toast";
 import { BASE_URL } from '@/data';
+import toast from 'react-hot-toast';
 
 export default function Component({ isOpen = false, onClose = () => {}, onTargetAdded = () => {} }) {
   const [targetName, setTargetName] = useState('');
   const [file, setFile] = useState<File | null>(null);
-  const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -33,11 +31,7 @@ export default function Component({ isOpen = false, onClose = () => {}, onTarget
     e.preventDefault();
     
     if (!targetName.trim() && !file) {
-      toast({
-        title: "Error",
-        description: "Please enter a target name or upload a file.",
-        variant: "destructive",
-      });
+      toast.error("Please enter a target name or upload a file.");
       return;
     }
 
@@ -52,17 +46,10 @@ export default function Component({ isOpen = false, onClose = () => {}, onTarget
 
       onTargetAdded(); // Notify parent component of the new target(s)
       onClose();
-      toast({
-        title: "Success",
-        description: "Target(s) added successfully!",
-      });
+      toast.success("Target(s) added successfully!");
     } catch (error) {
       console.error('Error:', error);
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred! Please try again.",
-        variant: "destructive",
-      });
+      toast.error("An unexpected error occurred! Please try again.");
     }
   };
 
@@ -136,7 +123,6 @@ export default function Component({ isOpen = false, onClose = () => {}, onTarget
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <Toaster />
     </>
   );
 }

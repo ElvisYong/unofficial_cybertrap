@@ -9,8 +9,6 @@ import TargetModal from '../../ui/components/target-modal';
 import { Input } from '@/components/ui/input';
 import { BASE_URL } from '@/data';
 import { Domain } from '@/app/types';
-import { useToast } from "@/components/ui/use-toast";
-import { Toaster } from "@/components/ui/toaster";
 import { domainApi } from '@/api/domains';
 import { scanApi } from '@/api/scans';
 import toast from 'react-hot-toast';
@@ -59,11 +57,7 @@ export default function Targets() : JSX.Element {
       toast.success("Scan initiated for all targets.");
     } catch (error) {
       console.error('Error initiating scan for all targets:', error);
-      toast({
-        title: "Error",
-        description: "Failed to initiate scan for all targets. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("Failed to initiate scan for all targets. Please try again.");
     } finally {
       setIsScanning(false);
     }
@@ -110,8 +104,6 @@ export default function Targets() : JSX.Element {
       <div className="mt-4">
         <TargetsTable domains={filteredDomains} />
       </div>
-
-      <Toaster/>
 
     </div>
   );

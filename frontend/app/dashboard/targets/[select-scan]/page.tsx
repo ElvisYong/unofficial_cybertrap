@@ -5,12 +5,11 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/components/ui/use-toast";
-import { Toaster } from "@/components/ui/toaster";
 import { BASE_URL } from "@/data";
 import { domainApi } from "@/api/domains";
 import { Domain, Template } from "@/app/types";
 import { scanApi } from "@/api/scans";
+import toast from "react-hot-toast";
 
 export default function SelectScan() {
     const [templates, setTemplates] = useState<Template[]>([]);
@@ -20,7 +19,6 @@ export default function SelectScan() {
     const [target, setTarget] = useState("");
     const [scanName, setScanName] = useState("");
     const router = useRouter();
-    const { toast } = useToast();
 
     useEffect(() => {
         const targetFromUrl = new URLSearchParams(window.location.search).get("target");
@@ -34,11 +32,7 @@ export default function SelectScan() {
             .then(data => setTemplates(data))
             .catch(error => {
                 console.error('Error fetching templates:', error);
-                toast({
-                    title: "Error",
-                    description: "Failed to fetch templates. Please try again.",
-                    variant: "destructive",
-                });
+                toast.error("Failed to fetch templates. Please try again.");
             });
     }, [toast]);
 
@@ -77,11 +71,7 @@ export default function SelectScan() {
         const domainId = target;
 
         if (!domainId) {
-            toast({
-                title: "Error",
-                description: "Invalid target domain.",
-                variant: "destructive",
-            });
+            toast.error("Invalid target domain.");
             return;
         }
 
@@ -102,21 +92,14 @@ export default function SelectScan() {
 
             await scanApi.scanDomains(requestBody.domainIds, requestBody.templateIds, requestBody.scanAllNuclei);
 
-            toast({
-                title: "Success",
-                description: "Scan initiated successfully.",
-            });
+            toast.success("Scan initiated successfully.");
 
             setTimeout(() => {
                 router.push("/dashboard/scans");
             }, 2000); // 2 second delay
         } catch (error) {
             console.error('Error initiating scan:', error);
-            toast({
-                title: "Error",
-                description: "Failed to initiate scan. Please try again.",
-                variant: "destructive",
-            });
+            toast.error("Failed to initiate scan. Please try again.");
         }
     };
 
