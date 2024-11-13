@@ -50,10 +50,9 @@ func (nh *NucleiHelper) ScanWithNuclei(
 	debug bool,
 ) error {
 	scanStartTime := time.Now()
-	timeoutDuration := 2 * time.Hour
 
-	// Create a child context with timeout
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Hour)
+	// Create a child context with a 2-hour timeout specifically for the scan
+	scanCtx, cancel := context.WithTimeout(ctx, 2*time.Hour)
 	defer cancel()
 
 	// Create cleanup channel
@@ -63,8 +62,8 @@ func (nh *NucleiHelper) ScanWithNuclei(
 	// Handle context cancellation
 	go func() {
 		select {
-		case <-ctx.Done():
-			errorMsg := formatErrorDetails(ctx.Err(), "Scan interrupted")
+		case <-scanCtx.Done():
+			errorMsg := formatErrorDetails(scanCtx.Err(), "Scan interrupted")
 			nh.handleScanError(context.Background(), scanID, multiScanId, errorMsg, time.Now())
 		case <-done:
 			return
@@ -107,14 +106,14 @@ func (nh *NucleiHelper) ScanWithNuclei(
 		}))
 	}
 
-	ne, err = nuclei.NewNucleiEngineCtx(ctx, options...)
+	ne, err = nuclei.NewNucleiEngineCtx(scanCtx, options...)
 	if err != nil {
 		errorMsg := formatErrorDetails(err, "Failed to create nuclei engine")
 		nh.handleScanError(ctx, scanID, multiScanId, errorMsg, scanStartTime)
 		return fmt.Errorf(errorMsg)
 	}
 
-	// Disable host errors
+	// Configure Nuclei engine options
 	ne.Options().Severities = []severity.Severity{severity.Info, severity.Low, severity.Medium, severity.High, severity.Critical}
 	ne.Options().StatsJSON = true
 	ne.Engine().ExecuterOptions().Options.NoHostErrors = true
@@ -137,23 +136,24 @@ func (nh *NucleiHelper) ScanWithNuclei(
 	log.Info().Msg("Successfully loaded targets into nuclei engine")
 	log.Info().Msg("Starting scan")
 
-	// Execute the scan with timeout context
+	// Execute the scan with the scan-specific context
 	scanResults := []output.ResultEvent{}
-	err = ne.ExecuteCallbackWithCtx(ctx, func(event *output.ResultEvent) {
+	err = ne.ExecuteCallbackWithCtx(scanCtx, func(event *output.ResultEvent) {
 		scanResults = append(scanResults, *event)
 	})
 
 	// Check context again after scan
-	if ctx.Err() != nil {
-		return ctx.Err()
+	if err := scanCtx.Err(); err != nil {
+		errorMsg := formatErrorDetails(err, "Scan context error after execution")
+		nh.handleScanError(context.Background(), scanID, multiScanId, errorMsg, scanStartTime)
+		return fmt.Errorf(errorMsg)
 	}
 
 	// Check for timeout
-	if ctx.Err() == context.DeadlineExceeded {
+	if scanCtx.Err() == context.DeadlineExceeded {
 		errorMsg := formatErrorDetails(
-			ctx.Err(),
-			fmt.Sprintf("Scan timed out after %s. Templates: %d, Results so far: %d",
-				timeoutDuration,
+			scanCtx.Err(),
+			fmt.Sprintf("Scan timed out after 2 hours. Templates: %d, Results so far: %d",
 				len(templateFilePaths),
 				len(scanResults)),
 		)
@@ -264,10 +264,7 @@ func (nh *NucleiHelper) ScanWithNuclei(
 
 // Enhanced error handling function
 func (nh *NucleiHelper) handleScanError(ctx context.Context, scanID, multiScanId primitive.ObjectID, errorMsg string, startTime time.Time) {
-	// Create a new context with short timeout for cleanup
-	cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
+	// Use the provided context directly without a timeout
 	duration := time.Since(startTime).Milliseconds()
 
 	errorInfo := map[string]interface{}{
@@ -284,7 +281,7 @@ func (nh *NucleiHelper) handleScanError(ctx context.Context, scanID, multiScanId
 	// Update scan status
 	go func() {
 		defer wg.Done()
-		if err := nh.mongoHelper.UpdateScanError(cleanupCtx, scanID, "failed", errorInfo, duration); err != nil {
+		if err := nh.mongoHelper.UpdateScanError(ctx, scanID, "failed", errorInfo, duration); err != nil {
 			log.Error().Err(err).Str("scanID", scanID.Hex()).Msg("Failed to update scan error status")
 		}
 	}()
@@ -292,22 +289,12 @@ func (nh *NucleiHelper) handleScanError(ctx context.Context, scanID, multiScanId
 	// Update multi-scan status
 	go func() {
 		defer wg.Done()
-		if err := nh.mongoHelper.UpdateMultiScanStatus(cleanupCtx, multiScanId, "failed", nil, &scanID); err != nil {
+		if err := nh.mongoHelper.UpdateMultiScanStatus(ctx, multiScanId, "failed", nil, &scanID); err != nil {
 			log.Error().Err(err).Str("multiScanId", multiScanId.Hex()).Msg("Failed to update multi scan status")
 		}
 	}()
 
-	// Wait for cleanup with timeout
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		log.Info().Msg("Error handling completed successfully")
-	case <-cleanupCtx.Done():
-		log.Error().Msg("Error handling timed out")
-	}
+	// Wait for cleanup to complete
+	wg.Wait()
+	log.Info().Msg("Error handling completed successfully")
 }
