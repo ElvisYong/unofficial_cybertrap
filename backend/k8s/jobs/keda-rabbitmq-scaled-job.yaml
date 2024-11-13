@@ -8,9 +8,6 @@ spec:
     - parameter: host
       name: rabbitmq-secret
       key: uri
-    - parameter: tls
-      name: rabbitmq-secret
-      key: tls
 ---
 apiVersion: keda.sh/v1alpha1
 kind: ScaledJob
@@ -32,7 +29,7 @@ spec:
           kubernetes.io/arch: arm64
         containers:
         - name: nuclei-scanner
-          image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:nuclei-scanner-v0.1.17
+          image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:nuclei-scanner-v0.1.20
           command: ["/bin/nuclei_scanner"]
           resources:
             requests:
@@ -72,6 +69,11 @@ spec:
               secretKeyRef:
                 name: rabbitmq-secret
                 key: uri
+          - name: SLACK_WEBHOOK_URL
+            valueFrom:
+              secretKeyRef:
+                name: slack-secret
+                key: webhook-url
         restartPolicy: OnFailure
   pollingInterval: 5
   successfulJobsHistoryLimit: 2
