@@ -152,7 +152,6 @@ export default function SelectScan() {
                     </Button>
                 </form>
             </div>
-            <Toaster />
         </div>
     );
 }
