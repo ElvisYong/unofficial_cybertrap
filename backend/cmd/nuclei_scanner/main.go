@@ -184,10 +184,14 @@ func processScans(ctx context.Context) error {
 		config.Debug,
 	); err != nil {
 		handleError(ctx, err, "Nuclei scan failed", scanMsg.ScanId, mongoHelper, config)
+		msg.Nack(false, true) // Nack the message to requeue it
 		return err
 	}
 
 	log.Info().Msg("Scan completed successfully")
+
+	// Acknowledge message after successful scan
+	msg.Ack(false)
 
 	// Send Slack notification
 	slackMessage := fmt.Sprintf("Scan completed successfully for domain: %s", scanMsg.Domain)
