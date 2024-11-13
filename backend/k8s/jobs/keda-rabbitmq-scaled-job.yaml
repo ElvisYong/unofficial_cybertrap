@@ -32,7 +32,7 @@ spec:
           kubernetes.io/arch: arm64
         containers:
         - name: nuclei-scanner
-          image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:nuclei-scanner-v0.1.16
+          image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:nuclei-scanner-v0.1.17
           command: ["/bin/nuclei_scanner"]
           resources:
             requests:
@@ -74,8 +74,8 @@ spec:
                 key: uri
         restartPolicy: OnFailure
   pollingInterval: 5
-  successfulJobsHistoryLimit: 5
-  failedJobsHistoryLimit: 5
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
   minReplicaCount: 0
   maxReplicaCount: 100
   scalingStrategy:
