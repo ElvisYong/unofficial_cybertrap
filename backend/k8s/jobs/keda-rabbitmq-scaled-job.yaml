@@ -29,7 +29,7 @@ spec:
           kubernetes.io/arch: arm64
         containers:
         - name: nuclei-scanner
-          image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:nuclei-scanner-v0.1.20
+          image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:nuclei-scanner-v0.1.21
           command: ["/bin/nuclei_scanner"]
           resources:
             requests:

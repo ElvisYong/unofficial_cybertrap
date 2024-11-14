@@ -194,7 +194,7 @@ func processScans(ctx context.Context) error {
 	msg.Ack(false)
 
 	// Send Slack notification
-	slackMessage := fmt.Sprintf("Scan completed successfully for domain: %s", scanMsg.Domain)
+	slackMessage := fmt.Sprintf("Scan completed successfully for domain: %s (ID: %s)", scanMsg.Domain, scanMsg.DomainId)
 	if err := helpers.SendSlackNotification(config.SlackWebhookURL, slackMessage); err != nil {
 		log.Error().Err(err).Msg("Failed to send Slack notification")
 	}
