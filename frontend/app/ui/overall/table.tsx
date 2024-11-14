@@ -68,20 +68,29 @@ export default function SimplifiedScanTable() {
   }
 
   const summary = useMemo(() => {
+    let passedScans = 0
+    let failedScans = 0
+
+    filteredScans.forEach(scan => {
+      if (scan.status === 'Pass') {
+        passedScans++
+      } else if (scan.status === 'Fail') {
+        failedScans++
+      }
+    })
+
     const totalScans = filteredScans.length
-    const passedScans = filteredScans.filter(scan => scan.status === 'Pass').length
-    const failedScans = filteredScans.filter(scan => scan.status === 'Fail').length
   
-    // Calculate pass and fail percentages
-    const passPercentage = totalScans > 0 ? (passedScans / totalScans) * 100 : 0
-    const failPercentage = totalScans > 0 ? (failedScans / totalScans) * 100 : 0
+    // // Calculate pass and fail percentages
+    // const passPercentage = totalScans > 0 ? (passedScans / totalScans) * 100 : 0
+    // const failPercentage = totalScans > 0 ? (failedScans / totalScans) * 100 : 0
   
     return {
       totalScans,
-      passedScans,  
-      failedScans,  
-      passPercentage: passPercentage.toFixed(2),  
-      failPercentage: failPercentage.toFixed(2)   
+    //   passedScans,  
+    //   failedScans,  
+    //   passPercentage: passPercentage.toFixed(2),  
+    //   failPercentage: failPercentage.toFixed(2)   
     }
   }, [filteredScans])
 
@@ -97,7 +106,7 @@ export default function SimplifiedScanTable() {
           <div className="text-2xl font-bold">{summary.totalScans}</div>
         </CardContent>
       </Card>
-      <Card>
+      {/* <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Overall Pass Percentage</CardTitle>
         </CardHeader>
@@ -112,7 +121,7 @@ export default function SimplifiedScanTable() {
         <CardContent>
           <div className="text-2xl font-bold text-red-600">{summary.failPercentage}%</div>
         </CardContent>
-      </Card>
+      </Card> */}
     </div>
 
       <div className="flex gap-4">
