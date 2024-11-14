@@ -11,6 +11,7 @@ type Scan struct {
 	DomainId    primitive.ObjectID   `bson:"domain_id"`
 	Domain      string               `bson:"domain"`
 	TemplateIDs []primitive.ObjectID `bson:"template_ids"` // The unique template ID which we use to identify the template
+	MultiScanID primitive.ObjectID   `bson:"multi_scan_id,omitempty"`
 	ScanDate    time.Time            `bson:"scan_date,omitempty"`
 	Status      string               `bson:"status"`          // pending, in-progress, completed, failed
 	Error       interface{}          `bson:"error,omitempty"` // Store error information if the scan fails

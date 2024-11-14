@@ -62,6 +62,24 @@ func (r *MongoHelper) InsertScan(ctx context.Context, scan models.Scan) (primiti
 	scan.ScanDate = time.Now()
 	scan.Status = "pending"
 
+	if scan.MultiScanID == primitive.NilObjectID {
+		scanDoc := bson.M{
+			"domain_id":     scan.DomainId,
+			"domain":        scan.Domain,
+			"template_ids":  scan.TemplateIDs,
+			"scan_date":     scan.ScanDate,
+			"status":        scan.Status,
+			"s3_result_url": scan.S3ResultURL,
+			"scan_took":     scan.ScanTook,
+		}
+		result, err := collection.InsertOne(ctx, scanDoc)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to insert scan")
+			return primitive.NilObjectID, err
+		}
+		return result.InsertedID.(primitive.ObjectID), nil
+	}
+
 	result, err := collection.InsertOne(ctx, scan)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to insert scan")
@@ -71,14 +89,26 @@ func (r *MongoHelper) InsertScan(ctx context.Context, scan models.Scan) (primiti
 	return result.InsertedID.(primitive.ObjectID), nil
 }
 
-// UpdateScanResult updates the scan model with the new scan result and optional duration
 func (r *MongoHelper) UpdateScanResult(ctx context.Context, scan models.Scan) error {
 	collection := r.client.Database(r.database).Collection(ScansCollection)
 	filter := bson.M{"_id": scan.ID}
 
-	// Convert the entire scan object to a BSON document
+	updateDoc := bson.M{
+		"domain_id":     scan.DomainId,
+		"domain":        scan.Domain,
+		"template_ids":  scan.TemplateIDs,
+		"scan_date":     scan.ScanDate,
+		"status":        scan.Status,
+		"s3_result_url": scan.S3ResultURL,
+		"scan_took":     scan.ScanTook,
+	}
+
+	if scan.MultiScanID != primitive.NilObjectID {
+		updateDoc["multi_scan_id"] = scan.MultiScanID
+	}
+
 	update := bson.M{
-		"$set": scan,
+		"$set": updateDoc,
 	}
 
 	_, err := collection.UpdateOne(ctx, filter, update)
@@ -151,6 +181,10 @@ func (r *MongoHelper) FindTemplateByID(ctx context.Context, templateID primitive
 }
 
 func (r *MongoHelper) UpdateMultiScanStatus(ctx context.Context, multiScanId primitive.ObjectID, status string, completedScanID, failedScanID *primitive.ObjectID) error {
+	if multiScanId == primitive.NilObjectID {
+		return fmt.Errorf("cannot update multi-scan status: nil MultiScanID")
+	}
+
 	collection := r.client.Database(r.database).Collection(MultiScansCollection)
 	filter := bson.M{"_id": multiScanId}
 	update := bson.M{
@@ -159,17 +193,20 @@ func (r *MongoHelper) UpdateMultiScanStatus(ctx context.Context, multiScanId pri
 		},
 	}
 
-	if completedScanID != nil {
+	if completedScanID != nil && *completedScanID != primitive.NilObjectID {
 		update["$push"] = bson.M{"completed_scans": *completedScanID}
 	}
 
-	if failedScanID != nil {
+	if failedScanID != nil && *failedScanID != primitive.NilObjectID {
 		update["$push"] = bson.M{"failed_scans": *failedScanID}
 	}
 
 	_, err := collection.UpdateOne(ctx, filter, update)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to update multi scan status")
+		log.Error().Err(err).
+			Str("multiScanId", multiScanId.Hex()).
+			Str("status", status).
+			Msg("Failed to update multi scan status")
 		return err
 	}
 
@@ -285,4 +322,18 @@ func (mh *MongoHelper) UpdateScanWithDuration(ctx context.Context, scanID primit
 	}
 
 	return nil
+}
+
+func (r *MongoHelper) HasMultiScanID(ctx context.Context, scanID primitive.ObjectID) (bool, primitive.ObjectID, error) {
+	collection := r.client.Database(r.database).Collection(ScansCollection)
+	var scan models.Scan
+	err := collection.FindOne(ctx, bson.M{"_id": scanID}).Decode(&scan)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return false, primitive.NilObjectID, nil
+		}
+		return false, primitive.NilObjectID, err
+	}
+	
+	return scan.MultiScanID != primitive.NilObjectID, scan.MultiScanID, nil
 }

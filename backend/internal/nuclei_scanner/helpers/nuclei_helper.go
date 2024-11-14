@@ -70,11 +70,13 @@ func (nh *NucleiHelper) ScanWithNuclei(
 		}
 	}()
 
-	// Update multi-scan status to in-progress at the start
-	if err := nh.mongoHelper.UpdateMultiScanStatus(ctx, multiScanId, "in-progress", nil, nil); err != nil {
-		errorMsg := formatErrorDetails(err, "Failed to update multi-scan status to in-progress")
-		log.Error().Err(err).Msg(errorMsg)
-		return fmt.Errorf(errorMsg)
+	// Update multi-scan status only if multiScanId is not nil
+	if multiScanId != primitive.NilObjectID {
+		if err := nh.mongoHelper.UpdateMultiScanStatus(ctx, multiScanId, "in-progress", nil, nil); err != nil {
+			errorMsg := formatErrorDetails(err, "Failed to update multi-scan status to in-progress")
+			log.Error().Err(err).Msg(errorMsg)
+			return fmt.Errorf(errorMsg)
+		}
 	}
 
 	// Update scan with start time
@@ -233,29 +235,32 @@ func (nh *NucleiHelper) ScanWithNuclei(
 		return fmt.Errorf("failed to update scan result: %w", err)
 	}
 
-	log.Info().Msg("Adding scan to completed scans in multi-scan")
-	err = nh.mongoHelper.UpdateMultiScanStatus(context.Background(), multiScanId, "in-progress", &scanID, nil)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to update multi scan status")
-		return fmt.Errorf("failed to update multi scan status: %w", err)
-	}
-
-	// Then, fetch the updated multi-scan to check if all scans are completed
-	multiScan, err := nh.mongoHelper.FindMultiScanByID(context.Background(), multiScanId)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to fetch multi scan")
-		return fmt.Errorf("failed to fetch multi scan: %w", err)
-	}
-
-	if len(multiScan.CompletedScans) == multiScan.TotalScans {
-		// All scans are completed, update the final status and duration
-		scanDuration := time.Since(multiScan.ScanDate).Milliseconds()
-		err = nh.mongoHelper.UpdateMultiScanCompletion(context.Background(), multiScanId, "completed", scanDuration)
+	// Update multi-scan status only if multiScanId is not nil
+	if multiScanId != primitive.NilObjectID {
+		log.Info().Msg("Adding scan to completed scans in multi-scan")
+		err = nh.mongoHelper.UpdateMultiScanStatus(context.Background(), multiScanId, "in-progress", &scanID, nil)
 		if err != nil {
-			log.Error().Err(err).
-				Str("multiScanId", multiScanId.Hex()).
-				Int64("duration", scanDuration).
-				Msg("Failed to update multi scan completion")
+			log.Error().Err(err).Msg("Failed to update multi scan status")
+			return fmt.Errorf("failed to update multi scan status: %w", err)
+		}
+
+		// Then, fetch the updated multi-scan to check if all scans are completed
+		multiScan, err := nh.mongoHelper.FindMultiScanByID(context.Background(), multiScanId)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to fetch multi scan")
+			return fmt.Errorf("failed to fetch multi scan: %w", err)
+		}
+
+		if len(multiScan.CompletedScans) == multiScan.TotalScans {
+			// All scans are completed, update the final status and duration
+			scanDuration := time.Since(multiScan.ScanDate).Milliseconds()
+			err = nh.mongoHelper.UpdateMultiScanCompletion(context.Background(), multiScanId, "completed", scanDuration)
+			if err != nil {
+				log.Error().Err(err).
+					Str("multiScanId", multiScanId.Hex()).
+					Int64("duration", scanDuration).
+					Msg("Failed to update multi scan completion")
+			}
 		}
 	}
 
@@ -264,7 +269,6 @@ func (nh *NucleiHelper) ScanWithNuclei(
 
 // Enhanced error handling function
 func (nh *NucleiHelper) handleScanError(ctx context.Context, scanID, multiScanId primitive.ObjectID, errorMsg string, startTime time.Time) {
-	// Use the provided context directly without a timeout
 	duration := time.Since(startTime).Milliseconds()
 
 	errorInfo := map[string]interface{}{
@@ -274,7 +278,6 @@ func (nh *NucleiHelper) handleScanError(ctx context.Context, scanID, multiScanId
 		"scanId":    scanID.Hex(),
 	}
 
-	// Use WaitGroup to ensure all cleanup operations complete
 	var wg sync.WaitGroup
 	wg.Add(2)
 
@@ -286,15 +289,47 @@ func (nh *NucleiHelper) handleScanError(ctx context.Context, scanID, multiScanId
 		}
 	}()
 
-	// Update multi-scan status
-	go func() {
-		defer wg.Done()
-		if err := nh.mongoHelper.UpdateMultiScanStatus(ctx, multiScanId, "failed", nil, &scanID); err != nil {
-			log.Error().Err(err).Str("multiScanId", multiScanId.Hex()).Msg("Failed to update multi scan status")
-		}
-	}()
+	// Update multi-scan status only if multiScanId is not nil
+	if multiScanId != primitive.NilObjectID {
+		go func() {
+			defer wg.Done()
+			if err := nh.mongoHelper.UpdateMultiScanStatus(ctx, multiScanId, "in-progress", nil, &scanID); err != nil {
+				log.Error().Err(err).Str("multiScanId", multiScanId.Hex()).Msg("Failed to update multi scan status")
+				return
+			}
 
-	// Wait for cleanup to complete
+			// Fetch updated multi-scan to check completion status
+			multiScan, err := nh.mongoHelper.FindMultiScanByID(ctx, multiScanId)
+			if err != nil {
+				log.Error().Err(err).Str("multiScanId", multiScanId.Hex()).Msg("Failed to fetch multi scan")
+				return
+			}
+
+			// Check if this was the last scan (including both completed and failed scans)
+			totalProcessedScans := len(multiScan.CompletedScans) + len(multiScan.FailedScans)
+			if totalProcessedScans == multiScan.TotalScans {
+				// Calculate total duration from the start of the multi-scan
+				multiScanDuration := time.Since(multiScan.ScanDate).Milliseconds()
+				
+				// Determine final status based on whether there are any successful scans
+				finalStatus := "failed"
+				if len(multiScan.CompletedScans) > 0 {
+					finalStatus = "completed"
+				}
+
+				// Update multi-scan as completed with final duration and appropriate status
+				if err := nh.mongoHelper.UpdateMultiScanCompletion(ctx, multiScanId, finalStatus, multiScanDuration); err != nil {
+					log.Error().Err(err).
+						Str("multiScanId", multiScanId.Hex()).
+						Int64("duration", multiScanDuration).
+						Msg("Failed to update multi scan completion")
+				}
+			}
+		}()
+	} else {
+		wg.Done() // Make sure to decrease the WaitGroup counter if we're not updating multi-scan
+	}
+
 	wg.Wait()
 	log.Info().Msg("Error handling completed successfully")
 }

@@ -321,11 +321,54 @@ func handleError(ctx context.Context, err error, context string, scanID primitiv
 
 	// Check if mongoHelper is initialized before updating the scan status
 	if mongoHelper != nil {
+		// Get the multi-scan ID from the scan
+		scan, findErr := mongoHelper.FindScanByID(ctx, scanID)
+		if findErr != nil {
+			log.Error().Err(findErr).Str("scanID", scanID.Hex()).Msg("Failed to fetch scan for multi-scan update")
+			return
+		}
+
+		// Update scan status
 		if updateErr := mongoHelper.UpdateScanStatus(ctx, scanID, "failed", errorDetails); updateErr != nil {
 			log.Error().
 				Err(updateErr).
 				Str("scanID", scanID.Hex()).
 				Msg("Failed to update scan error status")
+		}
+
+		// Update multi-scan status only if MultiScanID is not nil
+		if scan.MultiScanID != primitive.NilObjectID {
+			// Add to failed scans and check completion
+			if updateErr := mongoHelper.UpdateMultiScanStatus(ctx, scan.MultiScanID, "in-progress", nil, &scanID); updateErr != nil {
+				log.Error().
+					Err(updateErr).
+					Str("multiScanID", scan.MultiScanID.Hex()).
+					Msg("Failed to update multi-scan status")
+				return
+			}
+
+			// Check if this was the last scan
+			multiScan, findErr := mongoHelper.FindMultiScanByID(ctx, scan.MultiScanID)
+			if findErr != nil {
+				log.Error().Err(findErr).Str("multiScanID", scan.MultiScanID.Hex()).Msg("Failed to fetch multi-scan")
+				return
+			}
+
+			totalProcessedScans := len(multiScan.CompletedScans) + len(multiScan.FailedScans)
+			if totalProcessedScans == multiScan.TotalScans {
+				duration := time.Since(multiScan.ScanDate).Milliseconds()
+				// Determine final status based on whether there are any successful scans
+				finalStatus := "failed"
+				if len(multiScan.CompletedScans) > 0 {
+					finalStatus = "completed"
+				}
+				if updateErr := mongoHelper.UpdateMultiScanCompletion(ctx, scan.MultiScanID, finalStatus, duration); updateErr != nil {
+					log.Error().
+						Err(updateErr).
+						Str("multiScanID", scan.MultiScanID.Hex()).
+						Msg("Failed to update multi-scan completion")
+				}
+			}
 		}
 	} else {
 		// Send Slack notification about the inability to update MongoDB
