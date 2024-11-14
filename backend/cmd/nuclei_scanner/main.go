@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
+	"runtime/debug"
 	"sync"
 	"syscall"
 	"time"
@@ -69,13 +71,20 @@ func main() {
 		select {
 		case <-cleanup:
 			log.Info().Msg("Graceful shutdown completed")
-		case <-time.After(30 * time.Second):
+		case <-time.After(1 * time.Minute): // Increased from 30s to 1m
 			log.Warn().Msg("Graceful shutdown timed out")
 		}
 	}
 }
 
 func processScans(ctx context.Context) error {
+	// Set up memory monitoring
+	memoryThreshold := float64(0.90) // 90% memory usage threshold
+	go monitorMemory(memoryThreshold)
+
+	// Force garbage collection before starting
+	debug.FreeOSMemory()
+
 	// Initialize logger
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
@@ -93,7 +102,7 @@ func processScans(ctx context.Context) error {
 	defer rabbitClient.Close()
 	log.Info().Msg("RabbitMQ client initialized")
 
-	// Get message from queue (will automatically retry if needed)
+	// Get message from queue
 	msg, ok, err := rabbitClient.Get()
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to get message from RabbitMQ after all retries")
@@ -104,11 +113,43 @@ func processScans(ctx context.Context) error {
 		os.Exit(0)
 	}
 
-	// Parse the message
+	// Parse the message early
 	var scanMsg rabbitmq.ScanMessage
 	if err := json.Unmarshal(msg.Body, &scanMsg); err != nil {
 		log.Fatal().Err(err).Msg("Failed to unmarshal message")
 	}
+
+	// Declare mongoHelper at a higher scope
+	var mongoHelper *helpers.MongoHelper
+
+	// Enhanced defer for panic and OOM handling
+	defer func() {
+		if r := recover(); r != nil {
+			// Log the stack trace
+			stack := debug.Stack()
+			log.Error().
+				Interface("panic", r).
+				Str("stack", string(stack)).
+				Msg("Panic or OOM recovered")
+
+			// Try to free memory
+			debug.FreeOSMemory()
+
+			// Nack the message
+			msg.Nack(false, true)
+
+			// Update scan status if possible
+			if mongoHelper != nil {
+				errorDetails := map[string]interface{}{
+					"error":     fmt.Sprintf("Panic: %v", r),
+					"stack":     string(stack),
+					"timestamp": time.Now(),
+				}
+				mongoHelper.UpdateScanStatus(context.Background(), scanMsg.ScanId, "failed", errorDetails)
+			}
+		}
+	}()
+
 	log.Info().Msgf("Processing scan message for domain: %s", scanMsg.Domain)
 
 	// Initialize MongoDB
@@ -119,7 +160,8 @@ func processScans(ctx context.Context) error {
 	}
 	defer mongoClient.Disconnect(ctx)
 
-	mongoHelper := helpers.NewMongoHelper(mongoClient, config.MongoDbName)
+	// Initialize mongoHelper
+	mongoHelper = helpers.NewMongoHelper(mongoClient, config.MongoDbName)
 
 	// Initialize S3
 	awsCfg, err := awsConfig.LoadDefaultConfig(
@@ -184,14 +226,13 @@ func processScans(ctx context.Context) error {
 		config.Debug,
 	); err != nil {
 		handleError(ctx, err, "Nuclei scan failed", scanMsg.ScanId, mongoHelper, config)
-		msg.Nack(false, true) // Nack the message to requeue it
+		msg.Nack(false, true) // Requeue message on scan failure
 		return err
 	}
 
-	log.Info().Msg("Scan completed successfully")
-
-	// Acknowledge message after successful scan
+	// Only acknowledge message after successful scan
 	msg.Ack(false)
+	log.Info().Msg("Scan completed successfully and message acknowledged")
 
 	// Send Slack notification
 	slackMessage := fmt.Sprintf("Scan completed successfully for domain: %s (ID: %s)", scanMsg.Domain, scanMsg.DomainId)
@@ -291,6 +332,29 @@ func handleError(ctx context.Context, err error, context string, scanID primitiv
 		slackMessage := fmt.Sprintf("MongoHelper is not initialized. Unable to update scan status for scanID: %s", scanID.Hex())
 		if slackErr := helpers.SendSlackNotification(config.SlackWebhookURL, slackMessage); slackErr != nil {
 			log.Error().Err(slackErr).Msg("Failed to send Slack notification about MongoDB initialization error")
+		}
+	}
+}
+
+// Monitor memory usage
+func monitorMemory(threshold float64) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		var m runtime.MemStats
+		runtime.ReadMemStats(&m)
+
+		// Calculate memory usage percentage
+		memoryUsage := float64(m.Alloc) / float64(m.Sys)
+
+		if memoryUsage > threshold {
+			log.Warn().
+				Float64("usage", memoryUsage*100).
+				Msg("High memory usage detected")
+
+			// Force garbage collection
+			debug.FreeOSMemory()
 		}
 	}
 }
