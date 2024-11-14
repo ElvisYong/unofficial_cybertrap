@@ -143,11 +143,11 @@ func (nh *NucleiHelper) ScanWithNuclei(
 	})
 
 	// Check context again after scan
-	if err := scanCtx.Err(); err != nil {
-		errorMsg := formatErrorDetails(err, "Scan context error after execution")
-		nh.handleScanError(context.Background(), scanID, multiScanId, errorMsg, scanStartTime)
-		return fmt.Errorf(errorMsg)
-	}
+	// if err := scanCtx.Err(); err != nil {
+	// 	errorMsg := formatErrorDetails(err, "Scan context error after execution")
+	// 	nh.handleScanError(context.Background(), scanID, multiScanId, errorMsg, scanStartTime)
+	// 	return fmt.Errorf(errorMsg)
+	// }
 
 	// Check for timeout
 	if scanCtx.Err() == context.DeadlineExceeded {
