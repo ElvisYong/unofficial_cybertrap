@@ -29,7 +29,7 @@ spec:
           kubernetes.io/arch: arm64
         containers:
         - name: nuclei-scanner
-          image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:nuclei-scanner-v0.1.21
+          image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:nuclei-scanner-v0.2.0
           command: ["/bin/nuclei_scanner"]
           resources:
             requests:
@@ -79,7 +79,7 @@ spec:
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 2
   minReplicaCount: 0
-  maxReplicaCount: 100
+  maxReplicaCount: 10
   scalingStrategy:
     strategy: "accurate"
     pendingPodConditions:

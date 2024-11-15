@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
+	"runtime/debug"
 	"sync"
 	"syscall"
 	"time"
@@ -69,13 +71,20 @@ func main() {
 		select {
 		case <-cleanup:
 			log.Info().Msg("Graceful shutdown completed")
-		case <-time.After(30 * time.Second):
+		case <-time.After(1 * time.Minute): // Increased from 30s to 1m
 			log.Warn().Msg("Graceful shutdown timed out")
 		}
 	}
 }
 
 func processScans(ctx context.Context) error {
+	// Set up memory monitoring
+	memoryThreshold := float64(0.90) // 90% memory usage threshold
+	go monitorMemory(memoryThreshold)
+
+	// Force garbage collection before starting
+	debug.FreeOSMemory()
+
 	// Initialize logger
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
@@ -93,7 +102,7 @@ func processScans(ctx context.Context) error {
 	defer rabbitClient.Close()
 	log.Info().Msg("RabbitMQ client initialized")
 
-	// Get message from queue (will automatically retry if needed)
+	// Get message from queue
 	msg, ok, err := rabbitClient.Get()
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to get message from RabbitMQ after all retries")
@@ -104,11 +113,43 @@ func processScans(ctx context.Context) error {
 		os.Exit(0)
 	}
 
-	// Parse the message
+	// Parse the message early
 	var scanMsg rabbitmq.ScanMessage
 	if err := json.Unmarshal(msg.Body, &scanMsg); err != nil {
 		log.Fatal().Err(err).Msg("Failed to unmarshal message")
 	}
+
+	// Declare mongoHelper at a higher scope
+	var mongoHelper *helpers.MongoHelper
+
+	// Enhanced defer for panic and OOM handling
+	defer func() {
+		if r := recover(); r != nil {
+			// Log the stack trace
+			stack := debug.Stack()
+			log.Error().
+				Interface("panic", r).
+				Str("stack", string(stack)).
+				Msg("Panic or OOM recovered")
+
+			// Try to free memory
+			debug.FreeOSMemory()
+
+			// Nack the message
+			msg.Nack(false, true)
+
+			// Update scan status if possible
+			if mongoHelper != nil {
+				errorDetails := map[string]interface{}{
+					"error":     fmt.Sprintf("Panic: %v", r),
+					"stack":     string(stack),
+					"timestamp": time.Now(),
+				}
+				mongoHelper.UpdateScanStatus(context.Background(), scanMsg.ScanId, "failed", errorDetails)
+			}
+		}
+	}()
+
 	log.Info().Msgf("Processing scan message for domain: %s", scanMsg.Domain)
 
 	// Initialize MongoDB
@@ -119,7 +160,8 @@ func processScans(ctx context.Context) error {
 	}
 	defer mongoClient.Disconnect(ctx)
 
-	mongoHelper := helpers.NewMongoHelper(mongoClient, config.MongoDbName)
+	// Initialize mongoHelper
+	mongoHelper = helpers.NewMongoHelper(mongoClient, config.MongoDbName)
 
 	// Initialize S3
 	awsCfg, err := awsConfig.LoadDefaultConfig(
@@ -146,9 +188,6 @@ func processScans(ctx context.Context) error {
 
 	// Create NucleiHelper
 	nh := helpers.NewNucleiHelper(s3Helper, mongoHelper)
-
-	// Acknowledge message
-	msg.Ack(false)
 
 	// Update scan status to in-progress
 	if err = mongoHelper.UpdateScanStartTime(ctx, scanMsg.ScanId, time.Now()); err != nil {
@@ -184,14 +223,13 @@ func processScans(ctx context.Context) error {
 		config.Debug,
 	); err != nil {
 		handleError(ctx, err, "Nuclei scan failed", scanMsg.ScanId, mongoHelper, config)
-		msg.Nack(false, true) // Nack the message to requeue it
+		msg.Nack(false, true) // Requeue message on scan failure
 		return err
 	}
 
-	log.Info().Msg("Scan completed successfully")
-
-	// Acknowledge message after successful scan
+	// Only acknowledge message after successful scan
 	msg.Ack(false)
+	log.Info().Msg("Scan completed successfully and message acknowledged")
 
 	// Send Slack notification
 	slackMessage := fmt.Sprintf("Scan completed successfully for domain: %s (ID: %s)", scanMsg.Domain, scanMsg.DomainId)
@@ -280,11 +318,30 @@ func handleError(ctx context.Context, err error, context string, scanID primitiv
 
 	// Check if mongoHelper is initialized before updating the scan status
 	if mongoHelper != nil {
+		// Get the multi-scan ID from the scan
+		scan, findErr := mongoHelper.FindScanByID(ctx, scanID)
+		if findErr != nil {
+			log.Error().Err(findErr).Str("scanID", scanID.Hex()).Msg("Failed to fetch scan for multi-scan update")
+			return
+		}
+
+		// Update scan status
 		if updateErr := mongoHelper.UpdateScanStatus(ctx, scanID, "failed", errorDetails); updateErr != nil {
 			log.Error().
 				Err(updateErr).
 				Str("scanID", scanID.Hex()).
 				Msg("Failed to update scan error status")
+		}
+
+		// Update multi-scan status if applicable
+		if scan.MultiScanID != primitive.NilObjectID {
+			if updateErr := updateMultiScanStatusInMain(ctx, mongoHelper, scan.MultiScanID, scanID, false); updateErr != nil {
+				log.Error().
+					Err(updateErr).
+					Str("multiScanID", scan.MultiScanID.Hex()).
+					Str("scanID", scanID.Hex()).
+					Msg("Failed to update multi-scan status")
+			}
 		}
 	} else {
 		// Send Slack notification about the inability to update MongoDB
@@ -293,4 +350,77 @@ func handleError(ctx context.Context, err error, context string, scanID primitiv
 			log.Error().Err(slackErr).Msg("Failed to send Slack notification about MongoDB initialization error")
 		}
 	}
+}
+
+// Monitor memory usage
+func monitorMemory(threshold float64) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		var m runtime.MemStats
+		runtime.ReadMemStats(&m)
+
+		// Calculate memory usage percentage
+		memoryUsage := float64(m.Alloc) / float64(m.Sys)
+
+		if memoryUsage > threshold {
+			log.Warn().
+				Float64("usage", memoryUsage*100).
+				Msg("High memory usage detected")
+
+			// Force garbage collection
+			debug.FreeOSMemory()
+		}
+	}
+}
+
+// Add helper function
+func updateMultiScanStatusInMain(ctx context.Context, mongoHelper *helpers.MongoHelper, multiScanID primitive.ObjectID, scanID primitive.ObjectID, isSuccess bool) error {
+	multiScan, err := mongoHelper.FindMultiScanByID(ctx, multiScanID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch multi scan: %w", err)
+	}
+
+	// Remove scanID from both arrays if it exists
+	completedScans := removeObjectID(multiScan.CompletedScans, scanID)
+	failedScans := removeObjectID(multiScan.FailedScans, scanID)
+
+	// Add to appropriate array based on current status
+	if isSuccess {
+		completedScans = append(completedScans, scanID)
+	} else {
+		failedScans = append(failedScans, scanID)
+	}
+
+	// Update the multi-scan with new arrays
+	if err := mongoHelper.UpdateMultiScanArrays(ctx, multiScanID, completedScans, failedScans); err != nil {
+		return fmt.Errorf("failed to update multi-scan arrays: %w", err)
+	}
+
+	// Check if all scans are processed
+	totalProcessed := len(completedScans) + len(failedScans)
+	if totalProcessed >= multiScan.TotalScans {
+		duration := time.Since(multiScan.ScanDate).Milliseconds()
+		finalStatus := "failed"
+		if len(completedScans) > 0 {
+			finalStatus = "completed"
+		}
+		if err := mongoHelper.UpdateMultiScanCompletion(ctx, multiScanID, finalStatus, duration); err != nil {
+			return fmt.Errorf("failed to update multi-scan completion: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// Helper function to remove an ObjectID from a slice
+func removeObjectID(slice []primitive.ObjectID, target primitive.ObjectID) []primitive.ObjectID {
+	result := make([]primitive.ObjectID, 0, len(slice))
+	for _, id := range slice {
+		if id != target {
+			result = append(result, id)
+		}
+	}
+	return result
 }

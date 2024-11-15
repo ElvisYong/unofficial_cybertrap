@@ -51,6 +51,7 @@ func (s *ScansService) GetAllScans() ([]dto.GetAllScansResponse, error) {
 		scansResponse = append(scansResponse, dto.GetAllScansResponse{
 			ID:          scan.ID.Hex(),
 			DomainId:    scan.DomainId.Hex(),
+			Domain:      scan.Domain,
 			TemplateIds: templateIds,
 			ScanDate:    scan.ScanDate.Format("2006-01-02"),
 			Status:      scan.Status,
@@ -109,6 +110,7 @@ func (s *ScansService) ScanDomains(domainIds []primitive.ObjectID, templateIds [
 			DomainId:    domain.Id,
 			Domain:      domain.Domain,
 			TemplateIDs: templateIds,
+			MultiScanID: multiScanId,
 			Status:      "Pending",
 		}
 
@@ -186,6 +188,7 @@ func (s *ScansService) ScanAllDomains() error {
 			DomainId:    domain.Id,
 			Domain:      domain.Domain,
 			TemplateIDs: templateIds,
+			MultiScanID: multiScanId,
 			Status:      "Pending",
 		}
 
@@ -199,10 +202,12 @@ func (s *ScansService) ScanAllDomains() error {
 		}
 
 		messageJson := rabbitmq.ScanMessage{
-			MultiScanId: multiScanId,
-			ScanId:      scanId,
-			TemplateIds: templateIds,
-			DomainId:    domain.Id,
+			MultiScanId:   multiScanId,
+			ScanId:        scanId,
+			TemplateIds:   templateIds,
+			DomainId:      domain.Id,
+			Domain:        domain.Domain,
+			ScanAllNuclei: true, // Since we're scanning with all templates
 		}
 
 		// Send the message to the queue
