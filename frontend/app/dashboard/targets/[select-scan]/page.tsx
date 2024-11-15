@@ -10,6 +10,7 @@ import { domainApi } from "@/api/domains";
 import { Domain, Template } from "@/app/types";
 import { scanApi } from "@/api/scans";
 import toast from "react-hot-toast";
+import { templateApi } from "@/api/templates";
 
 export default function SelectScan() {
     const [templates, setTemplates] = useState<Template[]>([]);
@@ -26,15 +27,19 @@ export default function SelectScan() {
             setTarget(targetFromUrl);
         }
 
-        // Fetch templates
-        fetch(`${BASE_URL}/v1/templates`)
-            .then(response => response.json())
-            .then(data => setTemplates(data))
-            .catch(error => {
+        // Fetch templates using templateApi
+        const fetchTemplates = async () => {
+            try {
+                const data = await templateApi.getAllTemplates();
+                setTemplates(data);
+            } catch (error) {
                 console.error('Error fetching templates:', error);
                 toast.error("Failed to fetch templates. Please try again.");
-            });
-    }, [toast]);
+            }
+        };
+
+        fetchTemplates();
+    }, []);
 
     const handleTemplateSelection = (templateId: string) => {
         setSelectedTemplates(prev =>
