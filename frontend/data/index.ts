@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-export const BASE_URL: string = "http://a75d6504ef6df43ef9136c6996396272-41456714.ap-southeast-1.elb.amazonaws.com"
+export const BASE_URL: string = "http://a28e603c0d7c74a1fa16e29aa764dc90-236213353.ap-southeast-1.elb.amazonaws.com"
 // export const BASE_URL: string = "http://0.0.0.0:5000";
 
 export const axiosInstance = axios.create({

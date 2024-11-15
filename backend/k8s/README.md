@@ -52,7 +52,7 @@ aws eks update-kubeconfig --name cybertrap-cluster --region ap-southeast-1
 3. Apply the node group
 
 ```
-eksctl apply -f k8s/nodes/arm64-nodegroup.yaml 
+eksctl create nodegroup -f k8s/nodes/arm64-nodegroup.yaml
 ```
 
 4. Check the nodes in the cluster

@@ -6,11 +6,11 @@ metadata:
   region: ap-southeast-1
 
 managedNodeGroups:
-  - name: arm64-nodes-medium
-    instanceType: t4g.medium  # Changed to t4g.medium for a medium-sized ARM64 instance
+  - name: arm64-nodes-xlarge
+    instanceType: t4g.xlarge  # Changed to t4g.xlarge for a larger ARM64 instance
     minSize: 1
-    maxSize: 5  # Increased max size for better scalability
-    desiredCapacity: 2  # Increased desired capacity
+    maxSize: 5
+    desiredCapacity: 2
     privateNetworking: true
     labels:
       lifecycle: ec2-autoscaler
