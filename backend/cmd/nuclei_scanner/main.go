@@ -189,9 +189,6 @@ func processScans(ctx context.Context) error {
 	// Create NucleiHelper
 	nh := helpers.NewNucleiHelper(s3Helper, mongoHelper)
 
-	// Acknowledge message
-	msg.Ack(false)
-
 	// Update scan status to in-progress
 	if err = mongoHelper.UpdateScanStartTime(ctx, scanMsg.ScanId, time.Now()); err != nil {
 		handleError(ctx, err, "Failed to update scan start time", scanMsg.ScanId, mongoHelper, config)
@@ -336,38 +333,14 @@ func handleError(ctx context.Context, err error, context string, scanID primitiv
 				Msg("Failed to update scan error status")
 		}
 
-		// Update multi-scan status only if MultiScanID is not nil
+		// Update multi-scan status if applicable
 		if scan.MultiScanID != primitive.NilObjectID {
-			// Add to failed scans and check completion
-			if updateErr := mongoHelper.UpdateMultiScanStatus(ctx, scan.MultiScanID, "in-progress", nil, &scanID); updateErr != nil {
+			if updateErr := updateMultiScanStatusInMain(ctx, mongoHelper, scan.MultiScanID, scanID, false); updateErr != nil {
 				log.Error().
 					Err(updateErr).
 					Str("multiScanID", scan.MultiScanID.Hex()).
+					Str("scanID", scanID.Hex()).
 					Msg("Failed to update multi-scan status")
-				return
-			}
-
-			// Check if this was the last scan
-			multiScan, findErr := mongoHelper.FindMultiScanByID(ctx, scan.MultiScanID)
-			if findErr != nil {
-				log.Error().Err(findErr).Str("multiScanID", scan.MultiScanID.Hex()).Msg("Failed to fetch multi-scan")
-				return
-			}
-
-			totalProcessedScans := len(multiScan.CompletedScans) + len(multiScan.FailedScans)
-			if totalProcessedScans == multiScan.TotalScans {
-				duration := time.Since(multiScan.ScanDate).Milliseconds()
-				// Determine final status based on whether there are any successful scans
-				finalStatus := "failed"
-				if len(multiScan.CompletedScans) > 0 {
-					finalStatus = "completed"
-				}
-				if updateErr := mongoHelper.UpdateMultiScanCompletion(ctx, scan.MultiScanID, finalStatus, duration); updateErr != nil {
-					log.Error().
-						Err(updateErr).
-						Str("multiScanID", scan.MultiScanID.Hex()).
-						Msg("Failed to update multi-scan completion")
-				}
 			}
 		}
 	} else {
@@ -400,4 +373,54 @@ func monitorMemory(threshold float64) {
 			debug.FreeOSMemory()
 		}
 	}
+}
+
+// Add helper function
+func updateMultiScanStatusInMain(ctx context.Context, mongoHelper *helpers.MongoHelper, multiScanID primitive.ObjectID, scanID primitive.ObjectID, isSuccess bool) error {
+	multiScan, err := mongoHelper.FindMultiScanByID(ctx, multiScanID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch multi scan: %w", err)
+	}
+
+	// Remove scanID from both arrays if it exists
+	completedScans := removeObjectID(multiScan.CompletedScans, scanID)
+	failedScans := removeObjectID(multiScan.FailedScans, scanID)
+
+	// Add to appropriate array based on current status
+	if isSuccess {
+		completedScans = append(completedScans, scanID)
+	} else {
+		failedScans = append(failedScans, scanID)
+	}
+
+	// Update the multi-scan with new arrays
+	if err := mongoHelper.UpdateMultiScanArrays(ctx, multiScanID, completedScans, failedScans); err != nil {
+		return fmt.Errorf("failed to update multi-scan arrays: %w", err)
+	}
+
+	// Check if all scans are processed
+	totalProcessed := len(completedScans) + len(failedScans)
+	if totalProcessed >= multiScan.TotalScans {
+		duration := time.Since(multiScan.ScanDate).Milliseconds()
+		finalStatus := "failed"
+		if len(completedScans) > 0 {
+			finalStatus = "completed"
+		}
+		if err := mongoHelper.UpdateMultiScanCompletion(ctx, multiScanID, finalStatus, duration); err != nil {
+			return fmt.Errorf("failed to update multi-scan completion: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// Helper function to remove an ObjectID from a slice
+func removeObjectID(slice []primitive.ObjectID, target primitive.ObjectID) []primitive.ObjectID {
+	result := make([]primitive.ObjectID, 0, len(slice))
+	for _, id := range slice {
+		if id != target {
+			result = append(result, id)
+		}
+	}
+	return result
 }

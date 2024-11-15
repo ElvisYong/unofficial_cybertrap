@@ -334,6 +334,27 @@ func (r *MongoHelper) HasMultiScanID(ctx context.Context, scanID primitive.Objec
 		}
 		return false, primitive.NilObjectID, err
 	}
-	
+
 	return scan.MultiScanID != primitive.NilObjectID, scan.MultiScanID, nil
+}
+
+func (mh *MongoHelper) UpdateMultiScanArrays(ctx context.Context, multiScanID primitive.ObjectID, completedScans, failedScans []primitive.ObjectID) error {
+	collection := mh.client.Database(mh.database).Collection(MultiScansCollection)
+
+	update := bson.M{
+		"$set": bson.M{
+			"completed_scans": completedScans,
+			"failed_scans":    failedScans,
+		},
+	}
+
+	_, err := collection.UpdateOne(ctx, bson.M{"_id": multiScanID}, update)
+	if err != nil {
+		log.Error().Err(err).
+			Str("multiScanID", multiScanID.Hex()).
+			Msg("Failed to update multi-scan arrays")
+		return err
+	}
+
+	return nil
 }
