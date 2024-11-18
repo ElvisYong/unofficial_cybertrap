@@ -27,6 +27,10 @@ spec:
       spec:
         nodeSelector:
           kubernetes.io/arch: arm64
+        volumes:
+          - name: efs-volume
+            persistentVolumeClaim:
+              claimName: efs-pvc
         containers:
         - name: nuclei-scanner
           image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:nuclei-scanner-v0.2.1

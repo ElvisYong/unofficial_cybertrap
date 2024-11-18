@@ -160,13 +160,18 @@ func (nh *NucleiHelper) ScanWithNuclei(
 		return fmt.Errorf(errorMsg)
 	}
 
-	// Check the length of templateFiles
+	// Define the path to the templates in EFS
+	if scanAllNuclei {
+		templateDir := "/mnt/efs/nuclei-templates"
+		templateFilePaths = append(templateFilePaths, templateDir)
+	}
+
+	// Use the templateFilePaths in your Nuclei scan
 	templateSources := nuclei.TemplateSources{
 		Templates: templateFilePaths,
 	}
 
 	var ne *nuclei.NucleiEngine
-	var err error
 
 	options := []nuclei.NucleiSDKOptions{
 		nuclei.WithNetworkConfig(nuclei.NetworkConfig{
@@ -176,13 +181,13 @@ func (nh *NucleiHelper) ScanWithNuclei(
 		nuclei.WithTemplatesOrWorkflows(templateSources),
 	}
 
-	if scanAllNuclei {
-		options = append(options, nuclei.WithTemplateUpdateCallback(true, func(newVersion string) {
-			log.Info().Msgf("New template version available: %s", newVersion)
-		}))
-	}
+	// if scanAllNuclei {
+	// 	options = append(options, nuclei.WithTemplateUpdateCallback(true, func(newVersion string) {
+	// 		log.Info().Msgf("New template version available: %s", newVersion)
+	// 	}))
+	// }
 
-	ne, err = nuclei.NewNucleiEngineCtx(scanCtx, options...)
+	ne, err := nuclei.NewNucleiEngineCtx(scanCtx, options...)
 	if err != nil {
 		errorMsg := formatErrorDetails(err, "Failed to create nuclei engine")
 		nh.handleScanError(ctx, scanID, multiScanId, errorMsg, scanStartTime)
