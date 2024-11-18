@@ -1,0 +1,28 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: clone-nuclei-templates
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+      - name: clone-nuclei-templates
+        image: alpine/git
+        command:
+        - /bin/sh
+        - -c
+        - |
+          if [ ! -d "/mnt/efs/nuclei-templates" ]; then
+            git clone https://github.com/projectdiscovery/nuclei-templates /mnt/efs/nuclei-templates
+          else
+            cd /mnt/efs/nuclei-templates && git pull
+          fi
+        volumeMounts:
+        - name: efs-volume
+          mountPath: /mnt/efs
+      restartPolicy: OnFailure
+      volumes:
+      - name: efs-volume
+        persistentVolumeClaim:
+          claimName: efs-pvc

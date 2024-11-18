@@ -33,7 +33,7 @@ spec:
               claimName: efs-pvc
         containers:
         - name: nuclei-scanner
-          image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:nuclei-scanner-v0.2.1
+          image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:nuclei-scanner-v0.2.2
           command: ["/bin/nuclei_scanner"]
           resources:
             requests:
