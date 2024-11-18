@@ -15,7 +15,6 @@ import (
 
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
-	nuclei "github.com/projectdiscovery/nuclei/v3/lib"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	appConfig "github.com/shannevie/unofficial_cybertrap/backend/configs"
@@ -23,15 +22,6 @@ import (
 	"github.com/shannevie/unofficial_cybertrap/backend/internal/rabbitmq"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
-
-// Helper function to format error details
-func formatErrorDetails(err error, context string) map[string]interface{} {
-	return map[string]interface{}{
-		"error":     err.Error(),
-		"context":   context,
-		"timestamp": time.Now(),
-	}
-}
 
 func main() {
 	// Create a cancellable context
@@ -106,141 +96,124 @@ func processScans(ctx context.Context) error {
 	msg, ok, err := rabbitClient.Get()
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to get message from RabbitMQ after all retries")
-		os.Exit(1)
+		return err
 	}
 	if !ok {
 		log.Info().Msg("No message available, exiting...")
-		os.Exit(0)
+		return nil
 	}
 
-	// Parse the message early
-	var scanMsg rabbitmq.ScanMessage
-	if err := json.Unmarshal(msg.Body, &scanMsg); err != nil {
+	// Parse the message into array of scan messages
+	var scanMsgs []rabbitmq.ScanMessage
+	if err := json.Unmarshal(msg.Body, &scanMsgs); err != nil {
 		log.Fatal().Err(err).Msg("Failed to unmarshal message")
+		msg.Nack(false, true)
+		return err
 	}
 
-	// Declare mongoHelper at a higher scope
-	var mongoHelper *helpers.MongoHelper
+	// Create error channel and wait group for concurrent processing
+	errChan := make(chan error, len(scanMsgs))
+	var wg sync.WaitGroup
 
-	// Enhanced defer for panic and OOM handling
-	defer func() {
-		if r := recover(); r != nil {
-			// Log the stack trace
-			stack := debug.Stack()
-			log.Error().
-				Interface("panic", r).
-				Str("stack", string(stack)).
-				Msg("Panic or OOM recovered")
+	// Process each scan message concurrently
+	for _, scanMsg := range scanMsgs {
+		wg.Add(1)
+		go func(scan rabbitmq.ScanMessage) {
+			defer wg.Done()
 
-			// Try to free memory
-			debug.FreeOSMemory()
-
-			// Nack the message
-			msg.Nack(false, true)
-
-			// Update scan status if possible
-			if mongoHelper != nil {
-				errorDetails := map[string]interface{}{
-					"error":     fmt.Sprintf("Panic: %v", r),
-					"stack":     string(stack),
-					"timestamp": time.Now(),
-				}
-				mongoHelper.UpdateScanStatus(context.Background(), scanMsg.ScanId, "failed", errorDetails)
+			// Initialize MongoDB for this goroutine
+			mongoClient, err := helpers.NewMongoClient(ctx, config.MongoDbUri)
+			if err != nil {
+				errChan <- fmt.Errorf("MongoDB initialization failed for scan %s: %w", scan.ScanId, err)
+				return
 			}
-		}
+			defer mongoClient.Disconnect(ctx)
+
+			// Initialize mongoHelper for this goroutine
+			mongoHelper := helpers.NewMongoHelper(mongoClient, config.MongoDbName)
+
+			// Initialize S3 for this goroutine
+			awsCfg, err := awsConfig.LoadDefaultConfig(
+				ctx,
+				awsConfig.WithRegion("ap-southeast-1"),
+				awsConfig.WithCredentialsProvider(
+					credentials.NewStaticCredentialsProvider(
+						config.AwsAccessKeyId,
+						config.AwsSecretAccessKey,
+						"",
+					),
+				),
+			)
+			if err != nil {
+				errChan <- fmt.Errorf("AWS config failed for scan %s: %w", scan.ScanId, err)
+				return
+			}
+
+			s3Helper, err := helpers.NewS3Helper(awsCfg, config.TemplatesBucketName, config.ScanResultsBucketName)
+			if err != nil {
+				errChan <- fmt.Errorf("S3 initialization failed for scan %s: %w", scan.ScanId, err)
+				return
+			}
+
+			// Create NucleiHelper for this goroutine
+			nh := helpers.NewNucleiHelper(s3Helper, mongoHelper)
+
+			// Setup template directory for this scan
+			templateDir := filepath.Join(os.TempDir(), fmt.Sprintf("nuclei-templates-%s", scan.ScanId))
+			if err := os.MkdirAll(templateDir, 0755); err != nil {
+				errChan <- fmt.Errorf("failed to create template directory for scan %s: %w", scan.ScanId, err)
+				return
+			}
+			defer os.RemoveAll(templateDir)
+
+			// Download and process templates
+			templateFilePaths, err := downloadTemplates(ctx, templateDir, scan.TemplateIds, mongoHelper, s3Helper)
+			if err != nil {
+				errChan <- fmt.Errorf("template processing failed for scan %s: %w", scan.ScanId, err)
+				return
+			}
+
+			// Perform the scan
+			if err = nh.ScanWithNuclei(
+				ctx,
+				scan.MultiScanId,
+				scan.ScanId,
+				scan.Domain,
+				scan.DomainId,
+				templateFilePaths,
+				scan.TemplateIds,
+				scan.ScanAllNuclei,
+				config.Debug,
+			); err != nil {
+				errChan <- fmt.Errorf("nuclei scan failed for scan %s: %w", scan.ScanId, err)
+				return
+			}
+		}(scanMsg)
+	}
+
+	// Wait for all scans to complete
+	go func() {
+		wg.Wait()
+		close(errChan)
 	}()
 
-	log.Info().Msgf("Processing scan message for domain: %s", scanMsg.Domain)
-
-	// Initialize MongoDB
-	mongoClient, err := helpers.NewMongoClient(ctx, config.MongoDbUri)
-	if err != nil {
-		handleError(ctx, err, "MongoDB initialization failed", scanMsg.ScanId, nil, config)
-		return err
-	}
-	defer mongoClient.Disconnect(ctx)
-
-	// Initialize mongoHelper
-	mongoHelper = helpers.NewMongoHelper(mongoClient, config.MongoDbName)
-
-	// Initialize S3
-	awsCfg, err := awsConfig.LoadDefaultConfig(
-		ctx,
-		awsConfig.WithRegion("ap-southeast-1"),
-		awsConfig.WithCredentialsProvider(
-			credentials.NewStaticCredentialsProvider(
-				config.AwsAccessKeyId,
-				config.AwsSecretAccessKey,
-				"",
-			),
-		),
-	)
-	if err != nil {
-		handleError(ctx, err, "Failed to load AWS config", scanMsg.ScanId, mongoHelper, config)
-		return err
+	// Check for any errors
+	var errors []error
+	for err := range errChan {
+		if err != nil {
+			errors = append(errors, err)
+			log.Error().Err(err).Msg("Scan processing error")
+		}
 	}
 
-	s3Helper, err := helpers.NewS3Helper(awsCfg, config.TemplatesBucketName, config.ScanResultsBucketName)
-	if err != nil {
-		handleError(ctx, err, "Failed to initialize S3", scanMsg.ScanId, mongoHelper, config)
-		return err
+	// Handle message acknowledgment based on results
+	if len(errors) > 0 {
+		msg.Nack(false, true) // Requeue on errors
+		return fmt.Errorf("multiple scan errors occurred: %v", errors)
 	}
 
-	// Create NucleiHelper
-	nh := helpers.NewNucleiHelper(s3Helper, mongoHelper)
-
-	// Update scan status to in-progress
-	if err = mongoHelper.UpdateScanStartTime(ctx, scanMsg.ScanId, time.Now()); err != nil {
-		handleError(ctx, err, "Failed to update scan start time", scanMsg.ScanId, mongoHelper, config)
-		return err
-	}
-
-	// Setup template directory
-	templateDir := filepath.Join(os.TempDir(), "nuclei-templates")
-	if err := os.MkdirAll(templateDir, 0755); err != nil {
-		handleError(ctx, err, "Failed to create template directory", scanMsg.ScanId, mongoHelper, config)
-		return err
-	}
-	nuclei.DefaultConfig.TemplatesDirectory = templateDir
-
-	// Download and process templates
-	templateFilePaths, err := downloadTemplates(ctx, templateDir, scanMsg.TemplateIds, mongoHelper, s3Helper)
-	if err != nil {
-		handleError(ctx, err, "Template processing failed", scanMsg.ScanId, mongoHelper, config)
-		return err
-	}
-
-	// Perform the scan
-	if err = nh.ScanWithNuclei(
-		ctx,
-		scanMsg.MultiScanId,
-		scanMsg.ScanId,
-		scanMsg.Domain,
-		scanMsg.DomainId,
-		templateFilePaths,
-		scanMsg.TemplateIds,
-		scanMsg.ScanAllNuclei,
-		config.Debug,
-	); err != nil {
-		handleError(ctx, err, "Nuclei scan failed", scanMsg.ScanId, mongoHelper, config)
-		msg.Nack(false, true) // Requeue message on scan failure
-		return err
-	}
-
-	// Only acknowledge message after successful scan
-	msg.Ack(false)
-	log.Info().Msg("Scan completed successfully and message acknowledged")
-
-	// Send Slack notification
-	slackMessage := fmt.Sprintf("Scan completed successfully for domain: %s (ID: %s)", scanMsg.Domain, scanMsg.DomainId)
-	if err := helpers.SendSlackNotification(config.SlackWebhookURL, slackMessage); err != nil {
-		log.Error().Err(err).Msg("Failed to send Slack notification")
-	}
-
-	// Clean up template directory
-	if err := os.RemoveAll(templateDir); err != nil {
-		log.Error().Err(err).Msg("Failed to clean up template directory")
-	}
+	msg.Ack(false) // Acknowledge message if all scans completed successfully
+	log.Info().Msgf("Successfully processed %d scans", len(scanMsgs))
 	return nil
 }
 

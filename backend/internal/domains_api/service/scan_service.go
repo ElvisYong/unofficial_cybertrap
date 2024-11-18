@@ -63,6 +63,19 @@ func (s *ScansService) GetAllScans() ([]dto.GetAllScansResponse, error) {
 	return scansResponse, nil
 }
 
+// Helper function to chunk slice into batches
+func chunkSlice[T any](slice []T, chunkSize int) [][]T {
+	var chunks [][]T
+	for i := 0; i < len(slice); i += chunkSize {
+		end := i + chunkSize
+		if end > len(slice) {
+			end = len(slice)
+		}
+		chunks = append(chunks, slice[i:end])
+	}
+	return chunks
+}
+
 func (s *ScansService) ScanDomains(domainIds []primitive.ObjectID, templateIds []primitive.ObjectID, scanAllNuclei bool) error {
 	multiScanId := primitive.NewObjectID()
 
@@ -96,6 +109,8 @@ func (s *ScansService) ScanDomains(domainIds []primitive.ObjectID, templateIds [
 		domainMap[domains[i].Id.Hex()] = &domains[i]
 	}
 
+	// Create batches of scan messages
+	var scanMessages []rabbitmq.ScanMessage
 	for _, domainId := range domainIds {
 		scanId := primitive.NewObjectID()
 
@@ -121,30 +136,30 @@ func (s *ScansService) ScanDomains(domainIds []primitive.ObjectID, templateIds [
 			continue
 		}
 
-		// Create a new scan message for RabbitMQ
-		messageJson := rabbitmq.ScanMessage{
+		scanMessages = append(scanMessages, rabbitmq.ScanMessage{
 			MultiScanId:   multiScanId,
 			ScanId:        scanId,
 			TemplateIds:   templateIds,
 			DomainId:      domain.Id,
 			Domain:        domain.Domain,
 			ScanAllNuclei: scanAllNuclei,
-		}
+		})
+	}
 
-		// Send the message to the queue
-		err = s.mqClient.Publish(messageJson)
+	// Send messages in batches of 10
+	batches := chunkSlice(scanMessages, 10)
+	for i, batch := range batches {
+		err = s.mqClient.Publish(batch)
 		if err != nil {
-			log.Error().Err(err).Str("domainId", domainId.Hex()).Msg("Error sending scan message to queue")
+			log.Error().Err(err).Int("batchNumber", i+1).Msg("Error sending scan batch to queue")
 			continue
 		}
-
-		log.Info().Str("scanId", scanId.Hex()).Str("domainId", domainId.Hex()).Msg("Scan created and sent to queue")
+		log.Info().Int("batchNumber", i+1).Int("batchSize", len(batch)).Msg("Scan batch sent to queue")
 	}
 
 	return nil
 }
 
-// Retrieve all scheduled scans and scan all of them
 func (s *ScansService) ScanAllDomains() error {
 	// Get all domains
 	domainIds, err := s.domainsRepo.GetAllDomains()
@@ -160,13 +175,11 @@ func (s *ScansService) ScanAllDomains() error {
 		return err
 	}
 
-	// list of template ids strings
 	templateIds := make([]primitive.ObjectID, 0)
 	for _, template := range templates {
 		templateIds = append(templateIds, template.ID)
 	}
 
-	// Create the MultiScanId and the scan ids for each domain and then send to rabbitmq
 	multiScanId := primitive.NewObjectID()
 
 	// Create a multi scan data with in-progress status
@@ -180,6 +193,8 @@ func (s *ScansService) ScanAllDomains() error {
 		Status:         "in-progress",
 	}
 
+	// Create scan messages in batches
+	var scanMessages []rabbitmq.ScanMessage
 	for _, domain := range domainIds {
 		scanId := primitive.NewObjectID()
 
@@ -201,23 +216,14 @@ func (s *ScansService) ScanAllDomains() error {
 			continue
 		}
 
-		messageJson := rabbitmq.ScanMessage{
+		scanMessages = append(scanMessages, rabbitmq.ScanMessage{
 			MultiScanId:   multiScanId,
 			ScanId:        scanId,
 			TemplateIds:   templateIds,
 			DomainId:      domain.Id,
 			Domain:        domain.Domain,
-			ScanAllNuclei: true, // Since we're scanning with all templates
-		}
-
-		// Send the message to the queue
-		err = s.mqClient.Publish(messageJson)
-		if err != nil {
-			log.Error().Err(err).Str("domainId", domain.Id.Hex()).Msg("Error sending scan message to queue")
-			continue
-		}
-
-		log.Info().Str("scanId", scanId.Hex()).Str("domainId", domain.Id.Hex()).Msg("Scan created and sent to queue")
+			ScanAllNuclei: true,
+		})
 	}
 
 	// Insert the multi scan into the database
@@ -225,6 +231,17 @@ func (s *ScansService) ScanAllDomains() error {
 	if err != nil {
 		log.Error().Err(err).Msg("Error inserting multi scan into the database")
 		return err
+	}
+
+	// Send messages in batches of 10
+	batches := chunkSlice(scanMessages, 10)
+	for i, batch := range batches {
+		err = s.mqClient.Publish(batch)
+		if err != nil {
+			log.Error().Err(err).Int("batchNumber", i+1).Msg("Error sending scan batch to queue")
+			continue
+		}
+		log.Info().Int("batchNumber", i+1).Int("batchSize", len(batch)).Msg("Scan batch sent to queue")
 	}
 
 	return nil

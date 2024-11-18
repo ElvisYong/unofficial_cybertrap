@@ -112,21 +112,20 @@ func (r *RabbitMQClient) DeclareExchangeAndQueue() error {
 	return err
 }
 
-func (r *RabbitMQClient) Publish(message ScanMessage) error {
-	messageJSON, err := json.Marshal(message)
+func (r *RabbitMQClient) Publish(message interface{}) error {
+	body, err := json.Marshal(message)
 	if err != nil {
-		log.Logger.Error().Err(err).Msg("Failed to marshal ScanMessage")
-		return err
+		return fmt.Errorf("error marshaling message: %w", err)
 	}
 
-	err = r.channel.Publish(
+	return r.channel.Publish(
 		"nuclei_scans", // exchange
 		"",             // routing key
 		false,          // mandatory
 		false,          // immediate
 		amqp091.Publishing{
 			ContentType: "application/json",
-			Body:        messageJSON,
+			Body:        body,
 		},
 	)
 	if err != nil {
@@ -163,7 +162,7 @@ func (r *RabbitMQClient) Get() (*amqp091.Delivery, bool, error) {
 		"nuclei_scan_queue",
 		false, // auto-ack
 	)
-	
+
 	// If there's no message, return immediately without error
 	if !ok {
 		return nil, false, nil

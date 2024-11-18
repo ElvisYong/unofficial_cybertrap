@@ -123,6 +123,12 @@ func (nh *NucleiHelper) ScanWithNuclei(
 	scanAllNuclei bool,
 	debug bool,
 ) error {
+	log.Info().
+		Str("scanID", scanID.Hex()).
+		Str("domain", domain).
+		Int("templates", len(templateFilePaths)).
+		Msg("Starting concurrent scan")
+
 	scanStartTime := time.Now()
 
 	// Create a child context with a 2-hour timeout specifically for the scan
@@ -324,6 +330,12 @@ func (nh *NucleiHelper) ScanWithNuclei(
 			return fmt.Errorf("failed to update multi-scan status: %w", err)
 		}
 	}
+
+	log.Info().
+		Str("scanID", scanID.Hex()).
+		Str("domain", domain).
+		Int("resultsCount", len(scanResults)).
+		Msg("Scan completed successfully")
 
 	return nil
 }
