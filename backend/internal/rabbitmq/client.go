@@ -158,16 +158,18 @@ func (r *RabbitMQClient) Get() (*amqp091.Delivery, bool, error) {
 		}
 	}
 
+	log.Info().Msg("Getting message from RabbitMQ")
 	msg, ok, err := r.channel.Get(
 		"nuclei_scan_queue",
 		false, // auto-ack
 	)
-
 	// If there's no message, return immediately without error
 	if !ok {
+		log.Info().Msg("No message available")
 		return nil, false, nil
 	}
 
+	log.Info().Msgf("Received message: %s", string(msg.Body))
 	// Only return error if there actually was one
 	if err != nil {
 		return nil, false, err

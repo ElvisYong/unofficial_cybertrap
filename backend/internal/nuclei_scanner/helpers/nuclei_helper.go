@@ -167,10 +167,10 @@ func (nh *NucleiHelper) ScanWithNuclei(
 	}
 
 	// Define the path to the templates in EFS
-	if scanAllNuclei {
-		templateDir := "/mnt/efs/nuclei-templates"
-		templateFilePaths = append(templateFilePaths, templateDir)
-	}
+	// if scanAllNuclei {
+	// 	templateDir := "/mnt/efs/nuclei-templates"
+	// 	templateFilePaths = append(templateFilePaths, templateDir)
+	// }
 
 	// Use the templateFilePaths in your Nuclei scan
 	templateSources := nuclei.TemplateSources{

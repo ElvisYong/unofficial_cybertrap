@@ -27,21 +27,21 @@ spec:
       spec:
         nodeSelector:
           kubernetes.io/arch: arm64
-        volumes:
-          - name: efs-volume
-            persistentVolumeClaim:
-              claimName: efs-pvc
+        # volumes:
+        #   - name: efs-volume
+        #     persistentVolumeClaim:
+        #       claimName: efs-pvc
         containers:
         - name: nuclei-scanner
-          image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:nuclei-scanner-v0.2.2
+          image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:nuclei-scanner-v0.3.4
           command: ["/bin/nuclei_scanner"]
           resources:
             requests:
-              cpu: "250m"
-              memory: "512Mi"
-            limits:
               cpu: "500m"
               memory: "1024Mi"
+            limits:
+              cpu: "1000m"
+              memory: "2048Mi"
           env:
           - name: MAX_CONCURRENT_SCANS
             value: "1"
@@ -83,7 +83,7 @@ spec:
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 2
   minReplicaCount: 0
-  maxReplicaCount: 10
+  maxReplicaCount: 5
   scalingStrategy:
     strategy: "accurate"
     pendingPodConditions:

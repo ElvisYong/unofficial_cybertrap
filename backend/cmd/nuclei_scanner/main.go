@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -20,7 +22,6 @@ import (
 	appConfig "github.com/shannevie/unofficial_cybertrap/backend/configs"
 	helpers "github.com/shannevie/unofficial_cybertrap/backend/internal/nuclei_scanner/helpers"
 	"github.com/shannevie/unofficial_cybertrap/backend/internal/rabbitmq"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 func main() {
@@ -92,6 +93,49 @@ func processScans(ctx context.Context) error {
 	defer rabbitClient.Close()
 	log.Info().Msg("RabbitMQ client initialized")
 
+	// Create a common templates directory for all scans
+	commonTemplateDir := filepath.Join(os.TempDir(), "nuclei-templates-common", "nuclei-templates")
+	if err := os.MkdirAll(commonTemplateDir, 0755); err != nil {
+		log.Fatal().Err(err).Msg("Failed to create common template directory")
+	}
+	defer os.RemoveAll(filepath.Dir(commonTemplateDir))
+
+	// Initialize S3 before message processing
+	awsCfg, err := awsConfig.LoadDefaultConfig(
+		ctx,
+		awsConfig.WithRegion("ap-southeast-1"),
+		awsConfig.WithCredentialsProvider(
+			credentials.NewStaticCredentialsProvider(
+				config.AwsAccessKeyId,
+				config.AwsSecretAccessKey,
+				"",
+			),
+		),
+	)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize AWS config")
+		return err
+	}
+
+	s3Helper, err := helpers.NewS3Helper(awsCfg, config.TemplatesBucketName, config.ScanResultsBucketName)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize S3 helper")
+		return err
+	}
+
+	// Download all templates once before processing any messages
+	log.Info().Msg("Starting download of all nuclei templates...")
+	startTime := time.Now()
+	if err := s3Helper.DownloadAllTemplates(commonTemplateDir); err != nil {
+		log.Fatal().Err(err).Msg("Failed to download all templates")
+		return err
+	}
+	downloadDuration := time.Since(startTime)
+	log.Info().
+		Dur("duration", downloadDuration).
+		Str("location", commonTemplateDir).
+		Msg("Successfully downloaded all nuclei templates")
+
 	// Get message from queue
 	msg, ok, err := rabbitClient.Get()
 	if err != nil {
@@ -102,14 +146,19 @@ func processScans(ctx context.Context) error {
 		log.Info().Msg("No message available, exiting...")
 		return nil
 	}
+	log.Info().Msgf("Received message: %s", string(msg.Body))
 
 	// Parse the message into array of scan messages
 	var scanMsgs []rabbitmq.ScanMessage
 	if err := json.Unmarshal(msg.Body, &scanMsgs); err != nil {
-		log.Fatal().Err(err).Msg("Failed to unmarshal message")
+		log.Error().
+			Err(err).
+			Str("rawMessage", string(msg.Body)).
+			Msg("Failed to unmarshal message")
 		msg.Nack(false, true)
 		return err
 	}
+	log.Info().Msgf("Parsed scan messages: %v", scanMsgs)
 
 	// Create error channel and wait group for concurrent processing
 	errChan := make(chan error, len(scanMsgs))
@@ -132,48 +181,48 @@ func processScans(ctx context.Context) error {
 			// Initialize mongoHelper for this goroutine
 			mongoHelper := helpers.NewMongoHelper(mongoClient, config.MongoDbName)
 
-			// Initialize S3 for this goroutine
-			awsCfg, err := awsConfig.LoadDefaultConfig(
-				ctx,
-				awsConfig.WithRegion("ap-southeast-1"),
-				awsConfig.WithCredentialsProvider(
-					credentials.NewStaticCredentialsProvider(
-						config.AwsAccessKeyId,
-						config.AwsSecretAccessKey,
-						"",
-					),
-				),
-			)
-			if err != nil {
-				errChan <- fmt.Errorf("AWS config failed for scan %s: %w", scan.ScanId, err)
-				return
-			}
-
-			s3Helper, err := helpers.NewS3Helper(awsCfg, config.TemplatesBucketName, config.ScanResultsBucketName)
-			if err != nil {
-				errChan <- fmt.Errorf("S3 initialization failed for scan %s: %w", scan.ScanId, err)
-				return
-			}
-
 			// Create NucleiHelper for this goroutine
 			nh := helpers.NewNucleiHelper(s3Helper, mongoHelper)
 
-			// Setup template directory for this scan
-			templateDir := filepath.Join(os.TempDir(), fmt.Sprintf("nuclei-templates-%s", scan.ScanId))
-			if err := os.MkdirAll(templateDir, 0755); err != nil {
-				errChan <- fmt.Errorf("failed to create template directory for scan %s: %w", scan.ScanId, err)
-				return
-			}
-			defer os.RemoveAll(templateDir)
+			// Use templates from the common directory
+			var templateFilePaths []string
+			if scan.ScanAllNuclei {
+				// Use all templates from common directory
+				err := filepath.Walk(commonTemplateDir, func(path string, info os.FileInfo, err error) error {
+					if err != nil {
+						return err
+					}
+					if !info.IsDir() && (strings.HasSuffix(path, ".yaml") || strings.HasSuffix(path, ".yml")) {
+						relativePath, err := filepath.Rel(commonTemplateDir, path)
+						if err == nil {
+							log.Debug().Str("template", relativePath).Msg("Adding template to scan")
+						}
+						templateFilePaths = append(templateFilePaths, path)
+					}
+					return nil
+				})
+				if err != nil {
+					errChan <- fmt.Errorf("failed to walk template directory for scan %s: %w", scan.ScanId, err)
+					return
+				}
+				log.Info().Int("templateCount", len(templateFilePaths)).Msg("Found templates for all-nuclei scan")
+			} else {
+				// For specific templates, just use the paths from common directory
+				for _, templateId := range scan.TemplateIds {
+					template, err := mongoHelper.FindTemplateByID(ctx, templateId)
+					if err != nil {
+						errChan <- fmt.Errorf("failed to find template %s: %w", templateId.Hex(), err)
+						return
+					}
 
-			// Download and process templates
-			templateFilePaths, err := downloadTemplates(ctx, templateDir, scan.TemplateIds, mongoHelper, s3Helper)
-			if err != nil {
-				errChan <- fmt.Errorf("template processing failed for scan %s: %w", scan.ScanId, err)
-				return
+					// Extract template name from S3 URL and construct path in common directory
+					parsedURL, _ := url.Parse(template.S3URL)
+					templatePath := filepath.Join(commonTemplateDir, filepath.Base(parsedURL.Path))
+					templateFilePaths = append(templateFilePaths, templatePath)
+				}
 			}
 
-			// Perform the scan
+			// Perform the scan with the template paths
 			if err = nh.ScanWithNuclei(
 				ctx,
 				scan.MultiScanId,
@@ -217,114 +266,6 @@ func processScans(ctx context.Context) error {
 	return nil
 }
 
-func downloadTemplates(ctx context.Context, templateDir string, templateIds []primitive.ObjectID, mongoHelper *helpers.MongoHelper, s3Helper *helpers.S3Helper) ([]string, error) {
-	var wg sync.WaitGroup
-	templateFilePaths := make([]string, 0, len(templateIds))
-	errChan := make(chan error, len(templateIds))
-	pathChan := make(chan string, len(templateIds))
-
-	for _, templateId := range templateIds {
-		wg.Add(1)
-		go func(templateId primitive.ObjectID) {
-			defer wg.Done()
-
-			template, err := mongoHelper.FindTemplateByID(ctx, templateId)
-			if err != nil {
-				errChan <- fmt.Errorf("failed to find template %s: %w", templateId.Hex(), err)
-				return
-			}
-
-			templateFilePath := filepath.Join(templateDir, fmt.Sprintf("template-%s.yaml", templateId.Hex()))
-			if err = s3Helper.DownloadFileFromURL(template.S3URL, templateFilePath); err != nil {
-				errChan <- fmt.Errorf("failed to download template %s: %w", templateId.Hex(), err)
-				return
-			}
-
-			pathChan <- templateFilePath
-		}(templateId)
-	}
-
-	// Wait for all goroutines to complete
-	go func() {
-		wg.Wait()
-		close(errChan)
-		close(pathChan)
-	}()
-
-	// Collect paths and check for errors
-	for path := range pathChan {
-		templateFilePaths = append(templateFilePaths, path)
-	}
-
-	var errors []string
-	for err := range errChan {
-		if err != nil {
-			errors = append(errors, err.Error())
-		}
-	}
-
-	if len(errors) > 0 {
-		return nil, fmt.Errorf("template download errors: %v", errors)
-	}
-
-	return templateFilePaths, nil
-}
-
-func handleError(ctx context.Context, err error, context string, scanID primitive.ObjectID, mongoHelper *helpers.MongoHelper, config appConfig.NucleiConfig) {
-	errorDetails := map[string]interface{}{
-		"message":   err.Error(),
-		"context":   context,
-		"timestamp": time.Now(),
-	}
-
-	log.Error().
-		Err(err).
-		Str("scanID", scanID.Hex()).
-		Interface("details", errorDetails).
-		Msg(context)
-
-	// Send Slack notification for the error
-	slackMessage := fmt.Sprintf("Scan failed for scanID: %s\nContext: %s\nError: %s", scanID.Hex(), context, err.Error())
-	if slackErr := helpers.SendSlackNotification(config.SlackWebhookURL, slackMessage); slackErr != nil {
-		log.Error().Err(slackErr).Msg("Failed to send Slack notification for error")
-	}
-
-	// Check if mongoHelper is initialized before updating the scan status
-	if mongoHelper != nil {
-		// Get the multi-scan ID from the scan
-		scan, findErr := mongoHelper.FindScanByID(ctx, scanID)
-		if findErr != nil {
-			log.Error().Err(findErr).Str("scanID", scanID.Hex()).Msg("Failed to fetch scan for multi-scan update")
-			return
-		}
-
-		// Update scan status
-		if updateErr := mongoHelper.UpdateScanStatus(ctx, scanID, "failed", errorDetails); updateErr != nil {
-			log.Error().
-				Err(updateErr).
-				Str("scanID", scanID.Hex()).
-				Msg("Failed to update scan error status")
-		}
-
-		// Update multi-scan status if applicable
-		if scan.MultiScanID != primitive.NilObjectID {
-			if updateErr := updateMultiScanStatusInMain(ctx, mongoHelper, scan.MultiScanID, scanID, false); updateErr != nil {
-				log.Error().
-					Err(updateErr).
-					Str("multiScanID", scan.MultiScanID.Hex()).
-					Str("scanID", scanID.Hex()).
-					Msg("Failed to update multi-scan status")
-			}
-		}
-	} else {
-		// Send Slack notification about the inability to update MongoDB
-		slackMessage := fmt.Sprintf("MongoHelper is not initialized. Unable to update scan status for scanID: %s", scanID.Hex())
-		if slackErr := helpers.SendSlackNotification(config.SlackWebhookURL, slackMessage); slackErr != nil {
-			log.Error().Err(slackErr).Msg("Failed to send Slack notification about MongoDB initialization error")
-		}
-	}
-}
-
 // Monitor memory usage
 func monitorMemory(threshold float64) {
 	ticker := time.NewTicker(5 * time.Second)
@@ -346,54 +287,4 @@ func monitorMemory(threshold float64) {
 			debug.FreeOSMemory()
 		}
 	}
-}
-
-// Add helper function
-func updateMultiScanStatusInMain(ctx context.Context, mongoHelper *helpers.MongoHelper, multiScanID primitive.ObjectID, scanID primitive.ObjectID, isSuccess bool) error {
-	multiScan, err := mongoHelper.FindMultiScanByID(ctx, multiScanID)
-	if err != nil {
-		return fmt.Errorf("failed to fetch multi scan: %w", err)
-	}
-
-	// Remove scanID from both arrays if it exists
-	completedScans := removeObjectID(multiScan.CompletedScans, scanID)
-	failedScans := removeObjectID(multiScan.FailedScans, scanID)
-
-	// Add to appropriate array based on current status
-	if isSuccess {
-		completedScans = append(completedScans, scanID)
-	} else {
-		failedScans = append(failedScans, scanID)
-	}
-
-	// Update the multi-scan with new arrays
-	if err := mongoHelper.UpdateMultiScanArrays(ctx, multiScanID, completedScans, failedScans); err != nil {
-		return fmt.Errorf("failed to update multi-scan arrays: %w", err)
-	}
-
-	// Check if all scans are processed
-	totalProcessed := len(completedScans) + len(failedScans)
-	if totalProcessed >= multiScan.TotalScans {
-		duration := time.Since(multiScan.ScanDate).Milliseconds()
-		finalStatus := "failed"
-		if len(completedScans) > 0 {
-			finalStatus = "completed"
-		}
-		if err := mongoHelper.UpdateMultiScanCompletion(ctx, multiScanID, finalStatus, duration); err != nil {
-			return fmt.Errorf("failed to update multi-scan completion: %w", err)
-		}
-	}
-
-	return nil
-}
-
-// Helper function to remove an ObjectID from a slice
-func removeObjectID(slice []primitive.ObjectID, target primitive.ObjectID) []primitive.ObjectID {
-	result := make([]primitive.ObjectID, 0, len(slice))
-	for _, id := range slice {
-		if id != target {
-			result = append(result, id)
-		}
-	}
-	return result
 }
