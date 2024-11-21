@@ -8,7 +8,7 @@ export const domainApi = {
   },
 
   addDomain: async (domain: string): Promise<Domain> => {
-    const response = await axiosInstance.post('/v1/domains', { domain });
+    const response = await axiosInstance.post('/v1/domains/create', { domain });
     return response.data;
   },
 

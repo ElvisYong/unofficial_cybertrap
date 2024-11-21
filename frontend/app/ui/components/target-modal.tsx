@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BASE_URL } from '@/data';
 import toast from 'react-hot-toast';
+import { domainApi } from '@/api/domains';
 
 export default function Component({ isOpen = false, onClose = () => {}, onTargetAdded = () => {} }) {
   const [targetName, setTargetName] = useState('');
@@ -54,11 +55,9 @@ export default function Component({ isOpen = false, onClose = () => {}, onTarget
   };
 
   const createDomain = async (domain: string) => {
-    const response = await fetch(`${BASE_URL}/v1/domains/create?domain=${encodeURIComponent(domain)}`, {
-      method: 'POST',
-    });
-
-    if (!response.ok) {
+    try {
+      await domainApi.addDomain(domain);
+    } catch (error) {
       throw new Error(`Failed to create domain: ${domain}`);
     }
   };

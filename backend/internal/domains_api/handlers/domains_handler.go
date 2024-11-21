@@ -102,32 +102,26 @@ func (h *DomainsHandler) UploadDomainsTxt(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusCreated)
 }
 
-func (h *DomainsHandler) CreateDomain(w http.ResponseWriter, r *http.Request) { //r - comes from user, w - comes from server, writing to user
-
+func (h *DomainsHandler) CreateDomain(w http.ResponseWriter, r *http.Request) {
 	req := &dto.DomainCreateQuery{}
 
-	if err := schema.NewDecoder().Decode(req, r.URL.Query()); err != nil {
-		http.Error(w, "Invalid query parameters", http.StatusBadRequest)
+	// Decode JSON from request body
+	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-	// Extract the "domains" query parameter
-	// domainsQuery := r.URL.Query().Get("domains")
 
-	// // Check if the "domains" parameter is present
-	// if domainsQuery == "" {
-	// 	http.Error(w, "Missing 'domains' query parameter", http.StatusBadRequest)
-	// 	return
-	// }
+	if req.Domain == "" {
+		http.Error(w, "Missing 'domain' field in request body", http.StatusBadRequest)
+		return
+	}
 
-	// // Process the domainsQuery as needed
-	// For example, you might want to pass it to a service for processing
 	err := h.DomainsService.ProcessDomains(req.Domain)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// Send a response indicating that the request was successful
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte("Domain created successfully"))
 }
