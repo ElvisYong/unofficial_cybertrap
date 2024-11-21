@@ -93,12 +93,11 @@ func processScans(ctx context.Context) error {
 	defer rabbitClient.Close()
 	log.Info().Msg("RabbitMQ client initialized")
 
-	// Create a common templates directory for all scans
-	commonTemplateDir := filepath.Join(os.TempDir(), "nuclei-templates-common", "nuclei-templates")
+	// Change the common templates directory to /root/nuclei-templates
+	commonTemplateDir := "/root/nuclei-templates"
 	if err := os.MkdirAll(commonTemplateDir, 0755); err != nil {
 		log.Fatal().Err(err).Msg("Failed to create common template directory")
 	}
-	defer os.RemoveAll(filepath.Dir(commonTemplateDir))
 
 	// Initialize S3 before message processing
 	awsCfg, err := awsConfig.LoadDefaultConfig(

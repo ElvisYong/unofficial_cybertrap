@@ -176,6 +176,7 @@ func (nh *NucleiHelper) ScanWithNuclei(
 	templateSources := nuclei.TemplateSources{
 		Templates: templateFilePaths,
 	}
+	nuclei.DefaultConfig.TemplatesDirectory = "/root/nuclei-templates"
 
 	var ne *nuclei.NucleiEngine
 
@@ -187,11 +188,11 @@ func (nh *NucleiHelper) ScanWithNuclei(
 		nuclei.WithTemplatesOrWorkflows(templateSources),
 	}
 
-	// if scanAllNuclei {
-	// 	options = append(options, nuclei.WithTemplateUpdateCallback(true, func(newVersion string) {
-	// 		log.Info().Msgf("New template version available: %s", newVersion)
-	// 	}))
-	// }
+	if scanAllNuclei {
+		options = append(options, nuclei.WithTemplateUpdateCallback(true, func(newVersion string) {
+			log.Info().Msgf("New template version available: %s", newVersion)
+		}))
+	}
 
 	ne, err := nuclei.NewNucleiEngineCtx(scanCtx, options...)
 	if err != nil {
@@ -228,6 +229,13 @@ func (nh *NucleiHelper) ScanWithNuclei(
 	err = ne.ExecuteCallbackWithCtx(scanCtx, func(event *output.ResultEvent) {
 		scanResults = append(scanResults, *event)
 	})
+
+	if err != nil {
+		errorMsg := formatErrorDetails(err, "Failed to execute scan")
+		log.Error().Err(err).Msg(errorMsg)
+		nh.handleScanError(context.Background(), scanID, multiScanId, errorMsg, scanStartTime)
+		return fmt.Errorf(errorMsg)
+	}
 
 	// Check context again after scan
 	// if err := scanCtx.Err(); err != nil {
