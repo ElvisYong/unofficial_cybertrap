@@ -170,7 +170,7 @@ func (nh *NucleiHelper) ScanWithNuclei(
 	templateSources := nuclei.TemplateSources{
 		Templates: templateFilePaths,
 	}
-	nuclei.DefaultConfig.TemplatesDirectory = "/root/nuclei-templates"
+	// nuclei.DefaultConfig.TemplatesDirectory = "/root/"
 
 	var ne *nuclei.NucleiEngine
 
@@ -218,6 +218,7 @@ func (nh *NucleiHelper) ScanWithNuclei(
 	// Execute the scan with the scan-specific context
 	scanResults := []output.ResultEvent{}
 	err = ne.ExecuteCallbackWithCtx(scanCtx, func(event *output.ResultEvent) {
+		log.Info().Msgf("Received result event: %v", event)
 		scanResults = append(scanResults, *event)
 	})
 

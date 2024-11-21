@@ -33,7 +33,7 @@ spec:
         #       claimName: efs-pvc
         containers:
         - name: nuclei-scanner
-          image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:nuclei-scanner-v0.3.6
+          image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:nuclei-scanner-v0.3.9
           command: ["/bin/nuclei_scanner"]
           resources:
             requests:
@@ -80,8 +80,8 @@ spec:
                 key: webhook-url
         restartPolicy: OnFailure
   pollingInterval: 5
-  successfulJobsHistoryLimit: 2
-  failedJobsHistoryLimit: 2
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
   minReplicaCount: 0
   maxReplicaCount: 5
   scalingStrategy:

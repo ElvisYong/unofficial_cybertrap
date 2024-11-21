@@ -94,7 +94,7 @@ func processScans(ctx context.Context) error {
 	log.Info().Msg("RabbitMQ client initialized")
 
 	// Change the common templates directory to /root/nuclei-templates
-	commonTemplateDir := "/root/nuclei-templates"
+	commonTemplateDir := "/root"
 	if err := os.MkdirAll(commonTemplateDir, 0755); err != nil {
 		log.Fatal().Err(err).Msg("Failed to create common template directory")
 	}
