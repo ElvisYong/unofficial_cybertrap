@@ -166,12 +166,6 @@ func (nh *NucleiHelper) ScanWithNuclei(
 		return fmt.Errorf(errorMsg)
 	}
 
-	// Define the path to the templates in EFS
-	// if scanAllNuclei {
-	// 	templateDir := "/mnt/efs/nuclei-templates"
-	// 	templateFilePaths = append(templateFilePaths, templateDir)
-	// }
-
 	// Use the templateFilePaths in your Nuclei scan
 	templateSources := nuclei.TemplateSources{
 		Templates: templateFilePaths,
@@ -186,12 +180,9 @@ func (nh *NucleiHelper) ScanWithNuclei(
 			MaxHostError:      200,  // Using a larger number to avoid host errors dying in 30 tries dropping the domain
 		}),
 		nuclei.WithTemplatesOrWorkflows(templateSources),
-	}
-
-	if scanAllNuclei {
-		options = append(options, nuclei.WithTemplateUpdateCallback(true, func(newVersion string) {
+		nuclei.WithTemplateUpdateCallback(false, func(newVersion string) {
 			log.Info().Msgf("New template version available: %s", newVersion)
-		}))
+		}),
 	}
 
 	ne, err := nuclei.NewNucleiEngineCtx(scanCtx, options...)
