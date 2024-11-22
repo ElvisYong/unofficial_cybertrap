@@ -181,9 +181,15 @@ func (nh *NucleiHelper) ScanWithNuclei(
 		}),
 		nuclei.WithTemplatesOrWorkflows(templateSources),
 		nuclei.DisableUpdateCheck(),
+		nuclei.WithConcurrency(nuclei.Concurrency{
+			TemplatePayloadConcurrency: 20,
+			ProbeConcurrency:           20,
+		}),
+		nuclei.WithScanStrategy("hosts-spray"),
 	}
 
 	ne, err := nuclei.NewNucleiEngineCtx(scanCtx, options...)
+
 	if err != nil {
 		errorMsg := formatErrorDetails(err, "Failed to create nuclei engine")
 		nh.handleScanError(ctx, scanID, multiScanId, errorMsg, scanStartTime)
