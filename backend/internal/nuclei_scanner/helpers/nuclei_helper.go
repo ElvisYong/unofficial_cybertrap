@@ -183,10 +183,12 @@ func (nh *NucleiHelper) ScanWithNuclei(
 		nuclei.DisableUpdateCheck(),
 		nuclei.WithConcurrency(nuclei.Concurrency{
 			TemplateConcurrency:           15,
-			TemplatePayloadConcurrency:    10,
-			ProbeConcurrency:              15,
+			HostConcurrency:               3,
+			HeadlessHostConcurrency:       2,
 			HeadlessTemplateConcurrency:   2,
 			JavascriptTemplateConcurrency: 2,
+			TemplatePayloadConcurrency:    10,
+			ProbeConcurrency:              15,
 		}),
 		nuclei.WithScanStrategy("hosts-spray"),
 	}
