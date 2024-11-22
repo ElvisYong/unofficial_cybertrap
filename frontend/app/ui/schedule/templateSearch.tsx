@@ -9,11 +9,14 @@ type TemplateSearchProps = {
   selectedTemplates: Template[];
   onTemplateSelect: (template: Template) => void;
   onTemplateDeselect: (template: Template) => void;
+  onScanAllChange: (scanAll: boolean) => void;
+  disabled?: boolean;
 };
 
-export default function TemplateSearch({ templates, selectedTemplates, onTemplateSelect, onTemplateDeselect }: TemplateSearchProps) {
+export default function TemplateSearch({ templates, selectedTemplates, onTemplateSelect, onTemplateDeselect, onScanAllChange, disabled }: TemplateSearchProps) {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [allSelected, setAllSelected] = useState<boolean>(false);
+  const [isOpen, setIsOpen] = useState(false);
 
   // Filter templates based on the search term
   const filteredTemplates = templates
@@ -32,14 +35,12 @@ export default function TemplateSearch({ templates, selectedTemplates, onTemplat
   // Toggle select/deselect all
   const handleToggleSelectAll = () => {
     if (allSelected) {
-      // Deselect all filtered templates
       filteredTemplates.forEach(template => {
         if (isSelected(template)) {
           onTemplateDeselect(template);
         }
       });
     } else {
-      // Select all filtered templates
       filteredTemplates.forEach(template => {
         if (!isSelected(template)) {
           onTemplateSelect(template);
@@ -47,12 +48,21 @@ export default function TemplateSearch({ templates, selectedTemplates, onTemplat
       });
     }
     setAllSelected(!allSelected);
+    onScanAllChange(!allSelected);
+    setIsOpen(false);
   };
 
   return (
-    <Popover>
-      <PopoverTrigger className="border px-4 py-2 rounded cursor-pointer w-full text-left">
-        {selectedTemplates.length > 0 ? `Selected (${selectedTemplates.length})` : 'Select Templates'}
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger 
+        className="border px-4 py-2 rounded cursor-pointer w-full text-left" 
+        disabled={disabled}
+      >
+        {allSelected 
+          ? "All Templates Selected" 
+          : selectedTemplates.length > 0 
+            ? `Selected (${selectedTemplates.length})` 
+            : 'Select Templates'}
       </PopoverTrigger>
       <PopoverContent className="w-72 p-4">
         <Input
@@ -62,8 +72,13 @@ export default function TemplateSearch({ templates, selectedTemplates, onTemplat
           className="mb-4"
         />
         <div className="flex justify-between mb-2">
-          <Button variant="default" size="sm" onClick={handleToggleSelectAll}>
-            {allSelected ? 'Deselect All' : 'Select All'}
+          <Button 
+            variant={allSelected ? "destructive" : "default"} 
+            size="sm" 
+            onClick={handleToggleSelectAll}
+            className="w-full"
+          >
+            {allSelected ? 'Deselect All' : 'Select All Templates'}
           </Button>
         </div>
         <div className="max-h-48 overflow-y-auto">

@@ -44,14 +44,16 @@ export default function ScheduleScanTable() {
     fetchTemplates();
   }, []);
 
-  const getDomainNameById = (domainID: string) => {
+  const getDomainNameById = (domainID: string, scanAll?: boolean) => {
+    if (scanAll) return 'All Domains';
     const domain = domains.find(d => d.id === domainID);
     return domain ? domain.domain : 'Unknown Domain';
   };
 
-  const getTemplateNamesByIds = (templateIDs: string[]) => {
+  const getTemplateNamesByIds = (templateIDs: string[], scanAll?: boolean) => {
+    if (scanAll) return 'All Templates';
     if (!templateIDs || templateIDs.length === 0) {
-      return 'null';
+      return 'No templates selected';
     }
     const matchedTemplates = templates.filter(t => templateIDs.includes(t.id));
     return matchedTemplates.map(t => t.name).join(', ');
@@ -81,8 +83,8 @@ export default function ScheduleScanTable() {
         <tbody>
           {scans && scans.map((scan, index) => (
             <tr key={index} className="border-t">
-              <td className="px-4 py-2">{getDomainNameById(scan.domainId)}</td>
-              <td className="px-4 py-2">{getTemplateNamesByIds(scan.templatesIds)}</td>
+              <td className="px-4 py-2">{getDomainNameById(scan.domainId, scan.scanAll)}</td>
+              <td className="px-4 py-2">{getTemplateNamesByIds(scan.templatesIds, scan.scanAll)}</td>
               <td className="px-4 py-2">{scan.scheduledDate}</td>
               <td className="px-4 py-2 flex justify-center">
                 <button

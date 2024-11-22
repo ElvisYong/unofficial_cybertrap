@@ -32,4 +32,5 @@ export interface ScheduledScanResponse {
   domainId: string;
   templatesIds: string[];
   scheduledDate: string;
+  scanAll: boolean;
 }

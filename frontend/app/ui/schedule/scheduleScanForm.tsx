@@ -12,6 +12,7 @@ import DomainSearch from "./domainSearch";
 import { scanApi } from '@/api/scans';
 import { domainApi } from '@/api/domains';
 import { templateApi } from '@/api/templates';
+import toast from "react-hot-toast";
 
 
 type ScheduleScanFormProps = {
@@ -22,6 +23,8 @@ export default function ScheduleScanForm({ onSubmit }: ScheduleScanFormProps) {
   const [selectedDomain, setSelectedDomain] = useState<Domain | null>(null);
   const [selectedTemplates, setSelectedTemplates] = useState<Template[]>([]);
   const [scanDate, setScanDate] = useState<Date | null>(null);
+  const [scanAll, setScanAll] = useState(false);
+  const [scanAllDomains, setScanAllDomains] = useState(false);
 
   //domains
   const [domains, setDomains] = useState<Domain[]>([]);
@@ -61,24 +64,67 @@ export default function ScheduleScanForm({ onSubmit }: ScheduleScanFormProps) {
     );
   };
 
+  // Add feedback message state
+  const [feedbackMessage, setFeedbackMessage] = useState<string>('');
+
+  // Modify the setScanAll handler
+  const handleScanAllChange = (value: boolean) => {
+    setScanAll(value);
+    setFeedbackMessage(value 
+      ? "All templates will be used in this scan" 
+      : "");
+  };
+
+  // Add handler for scan all domains
+  const handleScanAllDomainsChange = (value: boolean) => {
+    setScanAllDomains(value);
+    if (value) {
+      setSelectedTemplates([]); // Clear selected templates when scanning all domains
+    }
+  };
+
   // submit form
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!selectedDomain?.id || !scanDate) {
-      console.error('Missing required fields');
+    // Modified validation to account for scanAllDomains
+    if ((!selectedDomain?.id && !scanAllDomains) || !scanDate) {
+      toast.error('Please fill in all required fields');
       return;
     }
 
     try {
-      await scanApi.scheduleScan(selectedDomain.id, selectedTemplates.map(template => template.id), format(scanDate, 'yyyy-MM-dd'));
+      if (scanAllDomains) {
+        // Handle scan all domains case
+        await scanApi.scheduleScan(
+          '',  // empty string for domainId when scanning all
+          [],  // empty array for templateIds when scanning all domains
+          format(scanDate, 'yyyy-MM-dd'),
+          true  // Set scanAll flag to true for all domains case
+        );
+      } else {
+        // Handle single domain case
+        await scanApi.scheduleScan(
+          selectedDomain!.id,
+          selectedTemplates.map(template => template.id),
+          format(scanDate, 'yyyy-MM-dd'),
+          scanAll  // Use scanAll state for single domain case
+        );
+      }
 
-      console.log('Scan scheduled successfully');
+      // Show success toast
+      toast.success('Scan scheduled successfully');
+
+      // Reset form
       setSelectedDomain(null);
       setSelectedTemplates([]);
       setScanDate(null);
+      setScanAll(false);
+      setScanAllDomains(false);
+      
     } catch (error) {
       console.error('Error submitting form:', error);
+      toast.error('Failed to schedule scan. Please try again.');
     }
   };
 
@@ -94,6 +140,8 @@ export default function ScheduleScanForm({ onSubmit }: ScheduleScanFormProps) {
           domains={domains}
           selectedDomain={selectedDomain}
           onDomainSelect={setSelectedDomain}
+          onScanAllChange={handleScanAllDomainsChange}
+          isScanAllTemplates={scanAll}
         />
       </div>
 
@@ -107,9 +155,28 @@ export default function ScheduleScanForm({ onSubmit }: ScheduleScanFormProps) {
           selectedTemplates={selectedTemplates}
           onTemplateSelect={handleTemplateSelect}
           onTemplateDeselect={handleTemplateDeselect}
+          onScanAllChange={handleScanAllChange}
+          disabled={scanAllDomains}
         />
-        <p className="mt-2 text-sm">Selected Templates: {selectedTemplates.map(t => t.name).join(', ') || 'None'}</p>
-
+        
+        {/* Add the new disabled message */}
+        {scanAllDomains && (
+          <p className="mt-2 text-sm text-amber-600 font-medium">
+            Template selection is disabled when scanning all domains
+          </p>
+        )}
+        
+        {/* Existing feedback messages */}
+        {feedbackMessage && (
+          <p className="mt-2 text-sm text-blue-600 font-medium">
+            {feedbackMessage}
+          </p>
+        )}
+        {!scanAll && selectedTemplates.length > 0 && (
+          <p className="mt-2 text-sm text-gray-600">
+            Selected Templates: {selectedTemplates.map(t => t.name).join(', ')}
+          </p>
+        )}
       </div>
 
       {/* Scan Date Picker */}
