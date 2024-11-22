@@ -135,6 +135,23 @@ func processScans(ctx context.Context) error {
 		Str("location", commonTemplateDir).
 		Msg("Successfully downloaded all nuclei templates")
 
+	// Move .nuclei-ignore file to the correct location
+	nucleiIgnoreSrc := filepath.Join(commonTemplateDir, "nuclei-templates", ".nuclei-ignore")
+	nucleiIgnoreDst := filepath.Join("/root", ".config", ".nuclei-ignore")
+	
+	// Create .config directory if it doesn't exist
+	if err := os.MkdirAll(filepath.Join("/root", ".config"), 0755); err != nil {
+		log.Fatal().Err(err).Msg("Failed to create .config directory")
+		return err
+	}
+	
+	// Move the file
+	if err := os.Rename(nucleiIgnoreSrc, nucleiIgnoreDst); err != nil {
+		log.Fatal().Err(err).Msg("Failed to move .nuclei-ignore file")
+		return err
+	}
+	log.Info().Msg("Successfully moved .nuclei-ignore file to /root/.config/")
+
 	// Get message from queue
 	msg, ok, err := rabbitClient.Get()
 	if err != nil {

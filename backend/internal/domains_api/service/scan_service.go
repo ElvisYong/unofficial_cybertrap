@@ -147,7 +147,7 @@ func (s *ScansService) ScanDomains(domainIds []primitive.ObjectID, templateIds [
 	}
 
 	// Send messages in batches of 10
-	batches := chunkSlice(scanMessages, 10)
+	batches := chunkSlice(scanMessages, 5)
 	for i, batch := range batches {
 		err = s.mqClient.Publish(batch)
 		if err != nil {

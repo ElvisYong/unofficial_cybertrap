@@ -176,13 +176,11 @@ func (nh *NucleiHelper) ScanWithNuclei(
 
 	options := []nuclei.NucleiSDKOptions{
 		nuclei.WithNetworkConfig(nuclei.NetworkConfig{
-			DisableMaxHostErr: true, // This probably doesn't work from what I can see
-			MaxHostError:      200,  // Using a larger number to avoid host errors dying in 30 tries dropping the domain
+			// DisableMaxHostErr: true, // This probably doesn't work from what I can see
+			MaxHostError: 200, // Using a larger number to avoid host errors dying in 30 tries dropping the domain
 		}),
 		nuclei.WithTemplatesOrWorkflows(templateSources),
-		nuclei.WithTemplateUpdateCallback(false, func(newVersion string) {
-			log.Info().Msgf("New template version available: %s", newVersion)
-		}),
+		nuclei.DisableUpdateCheck(),
 	}
 
 	ne, err := nuclei.NewNucleiEngineCtx(scanCtx, options...)

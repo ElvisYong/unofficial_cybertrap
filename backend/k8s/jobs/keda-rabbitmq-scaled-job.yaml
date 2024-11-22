@@ -33,15 +33,15 @@ spec:
         #       claimName: efs-pvc
         containers:
         - name: nuclei-scanner
-          image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:nuclei-scanner-v0.3.9
+          image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:nuclei-scanner-v0.3.16
           command: ["/bin/nuclei_scanner"]
           resources:
             requests:
-              cpu: "500m"
-              memory: "1024Mi"
-            limits:
               cpu: "1000m"
               memory: "2048Mi"
+            limits:
+              cpu: "2000m"
+              memory: "4096Mi"
           env:
           - name: MAX_CONCURRENT_SCANS
             value: "1"
@@ -85,7 +85,7 @@ spec:
   minReplicaCount: 0
   maxReplicaCount: 5
   scalingStrategy:
-    strategy: "accurate"
+    strategy: "default"
     pendingPodConditions:
       - "Ready"
       - "PodScheduled"

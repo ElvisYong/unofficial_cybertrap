@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: domains-api
-        image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:domains-api-v0.2.1
+        image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:domains-api-v0.2.4
         command: ["/bin/domains_api"]
         ports:
         - containerPort: 5000
