@@ -29,17 +29,18 @@ export default function PipelineStatusDashboard() {
   const [pipelineIndiv, setPipelineIndiv] = useState<any[]>([]);
 
   function setError(message: string) {
-    throw new Error('Function not implemented.')
+    console.log('error', message)
   }
   function setLoading(arg0: boolean) {
-    throw new Error('Function not implemented.')
+    console.log('loading', arg0)
   }
 
   // get project pipelines 
   useEffect(() => {
     const fetchPipelineData = async () => {
         try {
-          const gitlabToken = process.env.NEXT_GITLAB_TOKEN
+          const gitlabToken = process.env.NEXT_PUBLIC_GITLAB_TOKEN
+          console.log('gitlab token', gitlabToken)
           console.log("GitLab Token:", gitlabToken);
           const response = await fetch('https://gitlab.com/api/v4/projects/61215069/pipelines', {
             headers: {
@@ -114,7 +115,7 @@ export default function PipelineStatusDashboard() {
   useEffect(() => {
     const fetchIndivPipelineData = async () => {
       try {
-        const gitlabToken = process.env.NEXT_GITLAB_TOKEN;
+        const gitlabToken = process.env.NEXT_PUBLIC_GITLAB_TOKEN;
   
         // Fetch data for each job and await the responses in parallel
         const results = await Promise.all(
