@@ -137,7 +137,7 @@ func processScans(ctx context.Context) error {
 
 	// Move .nuclei-ignore file to the correct location
 	nucleiIgnoreSrc := filepath.Join(commonTemplateDir, "nuclei-templates", ".nuclei-ignore")
-	nucleiIgnoreDst := filepath.Join("/root", ".config", ".nuclei-ignore")
+	nucleiIgnoreDst := filepath.Join("/root", ".config", "nuclei", ".nuclei-ignore")
 	
 	// Create .config directory if it doesn't exist
 	if err := os.MkdirAll(filepath.Join("/root", ".config"), 0755); err != nil {
@@ -180,11 +180,21 @@ func processScans(ctx context.Context) error {
 	errChan := make(chan error, len(scanMsgs))
 	var wg sync.WaitGroup
 
-	// Process each scan message concurrently
+	// Create a semaphore to control concurrent scans
+	maxConcurrent := make(chan struct{}, config.MaxConcurrentScans)
+	log.Info().Int("maxConcurrentScans", config.MaxConcurrentScans).Msg("Initialized concurrent scan limiter")
+
+	// Process each scan message with controlled concurrency
 	for _, scanMsg := range scanMsgs {
 		wg.Add(1)
 		go func(scan rabbitmq.ScanMessage) {
-			defer wg.Done()
+			// Acquire semaphore
+			maxConcurrent <- struct{}{}
+			defer func() {
+				// Release semaphore
+				<-maxConcurrent
+				wg.Done()
+			}()
 
 			// Initialize MongoDB for this goroutine
 			mongoClient, err := helpers.NewMongoClient(ctx, config.MongoDbUri)

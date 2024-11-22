@@ -27,24 +27,20 @@ spec:
       spec:
         nodeSelector:
           kubernetes.io/arch: arm64
-        # volumes:
-        #   - name: efs-volume
-        #     persistentVolumeClaim:
-        #       claimName: efs-pvc
         containers:
         - name: nuclei-scanner
-          image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:nuclei-scanner-v0.3.16
+          image: 897729130899.dkr.ecr.ap-southeast-1.amazonaws.com/cybertrap-backend:nuclei-scanner-v0.3.17
           command: ["/bin/nuclei_scanner"]
           resources:
             requests:
-              cpu: "1000m"
-              memory: "2048Mi"
+              cpu: "500m"
+              memory: "1024Mi"
             limits:
-              cpu: "2000m"
-              memory: "4096Mi"
+              cpu: "1500m"
+              memory: "2048Mi"
           env:
           - name: MAX_CONCURRENT_SCANS
-            value: "1"
+            value: "2"
           - name: DEBUG
             value: "true"
           - name: AWS_ACCESS_KEY_ID
