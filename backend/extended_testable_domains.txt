@@ -50,3 +50,4 @@ testdemo.org
 playgroundtest.com
 stagingtest.net
 demotestsite.org
+oneportal.id.gdefence.io

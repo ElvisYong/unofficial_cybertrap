@@ -138,13 +138,13 @@ func processScans(ctx context.Context) error {
 	// Move .nuclei-ignore file to the correct location
 	nucleiIgnoreSrc := filepath.Join(commonTemplateDir, "nuclei-templates", ".nuclei-ignore")
 	nucleiIgnoreDst := filepath.Join("/root", ".config", "nuclei", ".nuclei-ignore")
-	
+
 	// Create .config directory if it doesn't exist
 	if err := os.MkdirAll(filepath.Join("/root", ".config"), 0755); err != nil {
 		log.Fatal().Err(err).Msg("Failed to create .config directory")
 		return err
 	}
-	
+
 	// Move the file
 	if err := os.Rename(nucleiIgnoreSrc, nucleiIgnoreDst); err != nil {
 		log.Fatal().Err(err).Msg("Failed to move .nuclei-ignore file")
@@ -208,7 +208,11 @@ func processScans(ctx context.Context) error {
 			mongoHelper := helpers.NewMongoHelper(mongoClient, config.MongoDbName)
 
 			// Create NucleiHelper for this goroutine
-			nh := helpers.NewNucleiHelper(s3Helper, mongoHelper)
+			nh := helpers.NewNucleiHelper(
+				s3Helper,
+				mongoHelper,
+				config.SlackWebhookURL,
+			)
 
 			// Use templates from the common directory
 			var templateFilePaths []string

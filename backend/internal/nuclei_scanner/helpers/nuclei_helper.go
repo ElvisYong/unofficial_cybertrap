@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"time"
 
 	nuclei "github.com/projectdiscovery/nuclei/v3/lib"
@@ -17,14 +16,16 @@ import (
 )
 
 type NucleiHelper struct {
-	s3Helper    *S3Helper
-	mongoHelper *MongoHelper
+	s3Helper     *S3Helper
+	mongoHelper  *MongoHelper
+	slackWebhook string
 }
 
-func NewNucleiHelper(s3Helper *S3Helper, mongoHelper *MongoHelper) *NucleiHelper {
+func NewNucleiHelper(s3Helper *S3Helper, mongoHelper *MongoHelper, slackWebhook string) *NucleiHelper {
 	return &NucleiHelper{
-		s3Helper:    s3Helper,
-		mongoHelper: mongoHelper,
+		s3Helper:     s3Helper,
+		mongoHelper:  mongoHelper,
+		slackWebhook: slackWebhook,
 	}
 }
 
@@ -190,7 +191,7 @@ func (nh *NucleiHelper) ScanWithNuclei(
 			TemplatePayloadConcurrency:    10,
 			ProbeConcurrency:              15,
 		}),
-		nuclei.WithScanStrategy("hosts-spray"),
+		// nuclei.WithScanStrategy("hosts-spray"),
 	}
 
 	ne, err := nuclei.NewNucleiEngineCtx(scanCtx, options...)
@@ -227,9 +228,20 @@ func (nh *NucleiHelper) ScanWithNuclei(
 	// Execute the scan with the scan-specific context
 	scanResults := []output.ResultEvent{}
 	err = ne.ExecuteCallbackWithCtx(scanCtx, func(event *output.ResultEvent) {
-		log.Info().Msgf("Received result event: %v", event)
+		// Add more detailed logging for each result
+		log.Info().
+			Str("templateID", event.TemplateID).
+			Str("host", event.Host).
+			Msg("Received scan result")
+
 		scanResults = append(scanResults, *event)
 	})
+
+	// Add logging for total results received
+	log.Info().
+		Int("totalResults", len(scanResults)).
+		Str("scanID", scanID.Hex()).
+		Msg("Scan execution completed")
 
 	if err != nil {
 		errorMsg := formatErrorDetails(err, "Failed to execute scan")
@@ -276,32 +288,61 @@ func (nh *NucleiHelper) ScanWithNuclei(
 	// Loop the scan results and parse them into a json
 	scanResultUrls := []string{}
 
-	for _, result := range scanResults {
+	log.Info().
+		Int("resultsToProcess", len(scanResults)).
+		Str("scanID", scanID.Hex()).
+		Msg("Starting S3 upload of results")
+
+	for i, result := range scanResults {
 		// Convert the result to a json
 		resultJSON, err := json.Marshal(result)
 		if err != nil {
-			log.Error().Err(err).Msg("Failed to marshal result")
+			log.Error().
+				Err(err).
+				Str("templateID", result.TemplateID).
+				Str("host", result.Host).
+				Msg("Failed to marshal result")
 			continue
 		}
 
-		// Upload the results onto s3 into the following structure
-		// scanID/templateID.json
-		// Once uploaded take the url and update the scan results
+		// Upload the results onto s3
 		multipartFile := bytes.NewReader(resultJSON)
 
-		// Get current timestamp in millis
 		currentTime := time.Now()
 		currentTimeMillis := currentTime.UnixNano() / int64(time.Millisecond)
-		fileName := result.TemplateID + "_" + result.Host + "_" + strconv.FormatInt(currentTimeMillis, 10) + ".json"
+		fileName := fmt.Sprintf("%s/%s_%s_%d.json",
+			scanID.Hex(), // Add scanID as folder
+			result.TemplateID,
+			result.Host,
+			currentTimeMillis,
+		)
 
 		s3URL, err := nh.s3Helper.UploadScanResultsS3(multipartFile, fileName)
 		if err != nil {
-			log.Error().Err(err).Msg("Failed to upload result to s3 for scanID, templateID: " + scanID.Hex() + ", " + result.TemplateID)
+			log.Error().
+				Err(err).
+				Str("scanID", scanID.Hex()).
+				Str("templateID", result.TemplateID).
+				Str("fileName", fileName).
+				Msg("Failed to upload result to S3")
 			continue
 		}
 
+		log.Info().
+			Str("s3URL", s3URL).
+			Int("resultIndex", i+1).
+			Int("totalResults", len(scanResults)).
+			Str("scanID", scanID.Hex()).
+			Msg("Successfully uploaded result to S3")
+
 		scanResultUrls = append(scanResultUrls, s3URL)
 	}
+
+	log.Info().
+		Int("totalResults", len(scanResults)).
+		Int("successfulUploads", len(scanResultUrls)).
+		Str("scanID", scanID.Hex()).
+		Msg("Completed S3 uploads")
 
 	// Update the scan result with the s3 url
 	scan := models.Scan{
@@ -314,6 +355,12 @@ func (nh *NucleiHelper) ScanWithNuclei(
 		ScanDate:    time.Now(),
 		Status:      "completed",
 	}
+
+	// Add logging for final scan update
+	log.Info().
+		Int("urlCount", len(scan.S3ResultURL)).
+		Str("scanID", scanID.Hex()).
+		Msg("Updating scan with S3 URLs")
 
 	scanDuration := time.Since(scanStartTime).Milliseconds()
 	scan.ScanTook = scanDuration
@@ -346,6 +393,17 @@ func (nh *NucleiHelper) ScanWithNuclei(
 		Int("resultsCount", len(scanResults)).
 		Msg("Scan completed successfully")
 
+	// Send Slack notification for successful scan
+	successMsg := fmt.Sprintf("✅ Scan completed successfully\nDomain: %s\nScan ID: %s\nResults: %d\nDuration: %dms",
+		domain,
+		scanID.Hex(),
+		len(scanResults),
+		scanDuration,
+	)
+	if err := SendSlackNotification(nh.slackWebhook, successMsg); err != nil {
+		log.Error().Err(err).Msg("Failed to send success notification to Slack")
+	}
+
 	return nil
 }
 
@@ -362,6 +420,16 @@ func (nh *NucleiHelper) handleScanError(ctx context.Context, scanID, multiScanId
 	// Update scan status first
 	if err := nh.mongoHelper.UpdateScanError(ctx, scanID, "failed", errorInfo, duration); err != nil {
 		log.Error().Err(err).Str("scanID", scanID.Hex()).Msg("Failed to update scan error status")
+	}
+
+	// Send Slack notification for failed scan
+	failureMsg := fmt.Sprintf("❌ Scan failed\nScan ID: %s\nDuration: %dms\nError: %s",
+		scanID.Hex(),
+		duration,
+		errorMsg,
+	)
+	if err := SendSlackNotification(nh.slackWebhook, failureMsg); err != nil {
+		log.Error().Err(err).Msg("Failed to send failure notification to Slack")
 	}
 
 	// Then update multi-scan status if applicable
