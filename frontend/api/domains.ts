@@ -14,5 +14,15 @@ export const domainApi = {
 
   deleteDomain: async (id: string): Promise<void> => {
     await axiosInstance.delete(`/v1/domains/${id}`);
+  },
+
+  uploadTxt: async (file: File): Promise<void> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    await axiosInstance.post('/v1/domains/upload-txt', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
   }
 }; 

@@ -66,12 +66,9 @@ export default function Component({ isOpen = false, onClose = () => {}, onTarget
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch(`${BASE_URL}/v1/domains/upload-txt`, {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!response.ok) {
+    try {
+      await domainApi.uploadTxt(file);
+    } catch (error) {
       throw new Error('Failed to upload file');
     }
   };
